@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="24512" systemVersion="25B78" minimumToolsVersion="Automatic" sourceLanguage="Swift" userDefinedModelVersionIdentifier="">
+    <entity name="EmployeeEntity" representedClassName="EmployeeEntity" syncable="YES" codeGenerationType="class">
+        <attribute name="city" attributeType="String"/>
+        <attribute name="country" attributeType="String"/>
+        <attribute name="department" attributeType="String" spotlightIndexingEnabled="YES"/>
+        <attribute name="designation" attributeType="String" spotlightIndexingEnabled="YES"/>
+        <attribute name="email" attributeType="String"/>
+        <attribute name="id" attributeType="String" spotlightIndexingEnabled="YES"/>
+        <attribute name="imgURL" optional="YES" attributeType="String"/>
+        <attribute name="isActive" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="isDelete" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="joiningDate" optional="YES" attributeType="String"/>
+        <attribute name="name" attributeType="String" spotlightIndexingEnabled="YES"/>
+        <attribute name="needSync" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
+        <attribute name="syncAction" optional="YES" attributeType="String"/>
+        <attribute name="timestamp" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="updatedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <relationship name="phones" toMany="YES" deletionRule="Cascade" destinationEntity="PhoneEntity" inverseName="employee" inverseEntity="PhoneEntity"/>
+    </entity>
+    <entity name="PhoneEntity" representedClassName="PhoneEntity" syncable="YES" codeGenerationType="class">
+        <attribute name="id" attributeType="String"/>
+        <attribute name="number" attributeType="String"/>
+        <attribute name="type" attributeType="String"/>
+        <relationship name="employee" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="EmployeeEntity" inverseName="phones" inverseEntity="EmployeeEntity"/>
+    </entity>
+</model>

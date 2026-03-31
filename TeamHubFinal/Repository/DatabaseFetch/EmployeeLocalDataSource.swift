@@ -28,6 +28,7 @@ protocol EmployeeLocalDataSourceProtocol {
     func fetchFiltersFromDB() -> Filters
 
     func fetchFiltered(
+        search: String?,
         designations: [String],
         departments: [String],
         statuses: [String]
@@ -208,6 +209,7 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
         )
     }
     func fetchFiltered(
+        search: String?,
         designations: [String],
         departments: [String],
         statuses: [String]
@@ -217,6 +219,15 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
 
         var predicates: [NSPredicate] = []
 
+
+        //  SEARCH SUPPORT
+        if let search, !search.isEmpty {
+            predicates.append(NSPredicate(
+                format: "name CONTAINS[cd] %@ OR designation CONTAINS[cd] %@ OR department CONTAINS[cd] %@",
+                search, search, search
+            ))
+        }
+        
         if !designations.isEmpty {
             predicates.append(NSPredicate(format: "designation IN %@", designations))
         }

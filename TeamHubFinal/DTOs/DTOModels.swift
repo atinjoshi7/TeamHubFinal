@@ -23,19 +23,21 @@ struct EmployeeDTO: Codable {
     let city: String?
     let joiningDate: String?
     let country: String?
+    var deletedAt: String?
+    let version: Int?
     let mobiles: [PhoneDTO]?
 }
 struct EditablePhone: Identifiable {
     let id: String
     var type: String
     var number: String
-    // ✅ For existing phones
+    // For existing phones
     init(from phone: Phone) {
         self.id = phone.id
         self.type = phone.type
         self.number = phone.number
     }
-    // ✅ For new phones (THIS FIXES YOUR ERROR)
+    // For new phones (THIS FIXES YOUR ERROR)
        init(id: String, type: String, number: String) {
            self.id = id
            self.type = type

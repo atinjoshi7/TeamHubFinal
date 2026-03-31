@@ -17,10 +17,17 @@ struct AddEmployeeView: View {
     @State private var city = ""
     @State private var country = ""
     @State private var isActive = true
-
+    @StateObject private var vm: FilterViewModel
+    
     @State private var phones: [EditablePhone] = []
-
+    @State private var selectedDepartment: String = ""
+    @State private var selectedDesignation: String = ""
     private let phoneTypes = ["home", "office", "other"]
+    
+    init(vm: FilterViewModel, onSave: @escaping (Employee) -> Void) {
+        _vm = StateObject(wrappedValue: vm)
+        self.onSave = onSave
+    }
 
     var body: some View {
         NavigationStack {
@@ -31,6 +38,23 @@ struct AddEmployeeView: View {
                     TextField("Email", text: $email)
                     TextField("City", text: $city)
                     TextField("Country", text: $country)
+                    // 🔥 Department Dropdown
+                       Picker("Department", selection: $selectedDepartment) {
+                           Text("Select Department").tag("")
+                           ForEach(Array(Set(vm.filters.departments)).sorted(), id: \.self) { dept in
+                               Text(dept).tag(dept)
+                           }
+                       }
+                       .pickerStyle(.menu)
+
+                       // 🔥 Designation Dropdown
+                       Picker("Designation", selection: $selectedDesignation) {
+                           Text("Select Designation").tag("")
+                           ForEach(Array(Set(vm.filters.designations)).sorted(), id: \.self) { des in
+                               Text(des).tag(des)
+                           }
+                       }
+                       .pickerStyle(.menu)
 
                     Toggle("Active", isOn: $isActive)
                 }
@@ -61,6 +85,9 @@ struct AddEmployeeView: View {
                         }
                     }
                 }
+            }.task(id:"one-time"){
+                print("filter api Called")
+                await vm.fetchFilters()
             }
             .navigationTitle("Add Employee")
             .toolbar {
@@ -94,11 +121,15 @@ struct AddEmployeeView: View {
 
     private func save() {
 
+        guard !selectedDepartment.isEmpty , !selectedDesignation.isEmpty else{
+            print("No department/designation is selected")
+            return
+        }
         let employee = Employee(
             id: UUID().uuidString,
             name: name,
-            designation: "New", // or from picker later
-            department: "General",
+            designation: selectedDesignation, // or from picker later
+            department: selectedDepartment,
             isActive: isActive,
             imgUrl: nil,
             email: email,

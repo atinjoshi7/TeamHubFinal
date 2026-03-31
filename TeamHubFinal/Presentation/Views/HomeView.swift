@@ -24,13 +24,6 @@ struct HomeView: View {
         NavigationStack(path: $path) {
             VStack(spacing: 0) {
                 
-//                // 🔍 Search Bar
-//                SearchBarView(
-//                    text: $vm.searchQuery,
-//                    onChange: vm.onSearchChanged,
-//                    isFocused: $isFocused
-//                )
-//
                 HStack {
 
                     SearchBarView(
@@ -51,10 +44,6 @@ struct HomeView: View {
                             .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
                 }
-//                .padding(.horizontal)
-//                .padding(.vertical, 6)
-                
-                
                 contentView
             }
             .navigationTitle("Employees")
@@ -73,22 +62,20 @@ struct HomeView: View {
             )
             .task {
                 await vm.loadInitial()
+                await vm.prepareFilters()
             }
             .toolbar {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
                     Button {
-//                        showFilterSheet = true
+
                         Task {
 
-                              // ✅ Check cache FIRST
+                              // Check cache FIRST
                               if vm.cachedFilters != nil {
                                   showFilterSheet = true
                                   return
                               }
-
-                              // 🔥 First time → fetch
-                              await vm.prepareFilters()
-                              showFilterSheet = true
+                              
                           }
                     } label: {
                         Image(systemName: "line.3.horizontal.decrease.circle")
@@ -98,18 +85,15 @@ struct HomeView: View {
                            } label: {
                                Image(systemName: "plus")
                            }
-                    
-//                    Button {
-//                        withAnimation {
-//                            theme.toggle()
-//                        }
-//                    } label: {
-//                        Image(systemName: theme.isDarkMode ? "moon.fill" : "sun.max.fill")
-//                    }
                 }
             }
             .sheet(isPresented: $showAddSheet) {
-                AddEmployeeView { newEmployee in
+                AddEmployeeView(
+                    vm: FilterViewModel(repo: vm.repo,
+                                        network: network,
+                                        initialFilters: vm.cachedFilters
+                                       )
+                ) { newEmployee in
                     vm.addEmployee(newEmployee)
                 }
             }
@@ -118,7 +102,7 @@ struct HomeView: View {
                        vm: FilterViewModel(
                            repo: vm.repo,
                            network: network,
-                           initialFilters: vm.cachedFilters // 🔥 pass preloaded
+                           initialFilters: vm.cachedFilters //pass preloaded
                        )
                    ) { designations, departments, statuses in
 
@@ -133,19 +117,25 @@ struct HomeView: View {
     }
 }
 
-// MARK: - 🔹 VIEW EXTENSIONS
+// MARK: - VIEW EXTENSIONS
 
 extension HomeView {
     
     @ViewBuilder
     private var contentView: some View {
         
-        if vm.employees.isEmpty && vm.state == .loading {
+        if vm.displayEmployees.isEmpty && vm.state == .loading {
             ProgressView()
                 .frame(maxHeight: .infinity)
         }
-        else if vm.employees.isEmpty {
-            EmptyStateView()
+        else if vm.displayEmployees.isEmpty {
+            
+            if vm.isSearchingLoading {
+                   ProgressView("Searching...")
+                    .frame(maxHeight:.infinity)
+               } else {
+                   EmptyStateView()
+               }
         }
         else {
             listView
@@ -157,7 +147,7 @@ extension HomeView {
     
     private var listView: some View {
         List {
-            ForEach(vm.employees) { employee in
+            ForEach(vm.displayEmployees) { employee in
                 EmployeeRowView(employee: employee)
                     
                     .onAppear {
@@ -170,10 +160,11 @@ extension HomeView {
             }
             .onDelete(perform: vm.deleteEmployee)
             
-            if vm.state == .loading {
+            if vm.isLoading {
                 HStack {
                     Spacer()
                     ProgressView()
+                        
                     Spacer()
                 }
             }
@@ -185,8 +176,3 @@ extension HomeView {
         }
     }
 }
-
-//#Preview {
-//    HomeView()
-//}
-

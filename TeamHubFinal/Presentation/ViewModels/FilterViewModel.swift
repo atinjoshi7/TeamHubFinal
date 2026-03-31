@@ -17,7 +17,8 @@ final class FilterViewModel: ObservableObject {
         departments: [],
         statuses: []
     )
-
+    @Published var AddDepartments: Set<String> = []
+    @Published var AddDesignations: Set<String> = []
     @Published var selectedDesignations: Set<String> = []
     @Published var selectedDepartments: Set<String> = []
     @Published var selectedStatuses: Set<String> = []
@@ -44,7 +45,13 @@ final class FilterViewModel: ObservableObject {
             filters = repo.fetchFiltersFromDB()
         }
     }
-
+    
+    func fetchFilters() async{
+        filters = (try? await repo.fetchFilters()) ?? filters
+        AddDepartments = Set(filters.departments)
+        AddDesignations = Set(filters.designations)
+    }
+    
     func reset() {
         selectedDesignations.removeAll()
         selectedDepartments.removeAll()

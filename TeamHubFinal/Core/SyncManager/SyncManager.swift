@@ -94,7 +94,9 @@ extension SyncManager {
                     try await repo.syncUpdate(employee)
 
                 case "delete":
-                    try await repo.syncDelete(employee.id)
+                    print("DELETE FLOW START:", employee.id)
+                        try await repo.syncDelete(employee.id)
+                        print("DELETE API SUCCESS:", employee.id)
 
                 default:
                     continue

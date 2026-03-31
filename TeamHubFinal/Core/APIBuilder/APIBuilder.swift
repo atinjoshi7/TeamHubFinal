@@ -17,10 +17,11 @@ enum APIEndpoint {
     case createEmployee(Employee)
     case updateEmployee(id: String, employee: Employee)
     case deleteEmployee(id: String)
-
+    case updateEmployeeDTO(id: String, dto: EmployeeDTO)
     case filteredEmployees(
         limit: Int,
         offset: Int,
+        search: String?,
         designations: [String],
         departments: [String],
         statuses: [String]
@@ -58,8 +59,11 @@ enum APIEndpoint {
 
         case .deleteEmployee(let id):
             return URL(string: "\(base)/employees/\(id)")
-
-        case let .filteredEmployees(limit, offset, designations, departments, statuses):
+            
+        case .updateEmployeeDTO(let id, _):
+            return URL(string: "\(base)/employees/\(id)")
+            
+        case let .filteredEmployees(limit, offset, search, designations, departments, statuses):
 
             var components = URLComponents(string: "\(base)/employees")
 
@@ -68,10 +72,15 @@ enum APIEndpoint {
                 .init(name: "offset", value: "\(offset)")
             ]
 
+            if let search, !search.isEmpty {
+                    queryItems.append(.init(name: "search", value: search))
+                }
+            
             if !designations.isEmpty {
                 queryItems.append(.init(name: "designation",
                                         value: designations.joined(separator: ",")))
             }
+            
 
             if !departments.isEmpty {
                 queryItems.append(.init(name: "department",
@@ -98,6 +107,8 @@ enum APIEndpoint {
             return "PATCH"
         case .deleteEmployee:
             return "DELETE"
+        case .updateEmployeeDTO:
+            return "PATCH"
         default:
             return "GET"
         }
@@ -107,7 +118,7 @@ enum APIEndpoint {
 
     var headers: [String: String] {
         switch self {
-        case .createEmployee, .updateEmployee:
+        case .createEmployee, .updateEmployee, .updateEmployeeDTO:
             return ["Content-Type": "application/json"]
         default:
             return [:]
@@ -124,7 +135,8 @@ enum APIEndpoint {
 
         case .updateEmployee(_, let employee):
             return try? JSONEncoder().encode(employee.toDTO())
-
+        case .updateEmployeeDTO(_, let dto):
+            return try? JSONEncoder().encode(dto)
         default:
             return nil
         }
@@ -133,6 +145,7 @@ enum APIEndpoint {
 extension Employee {
 
     func toDTO() -> EmployeeDTO {
+   
         EmployeeDTO(
             id: id,
             name: name,
@@ -144,6 +157,8 @@ extension Employee {
             city: city,
             joiningDate: "",
             country: country,
+            deletedAt: nil,
+            version: nil,
             mobiles: phones.map {
                 PhoneDTO(
                     id: $0.id,

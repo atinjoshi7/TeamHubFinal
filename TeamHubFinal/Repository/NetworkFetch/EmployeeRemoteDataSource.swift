@@ -13,6 +13,7 @@ protocol EmployeeRemoteDataSourceProtocol {
     func fetchFilteredEmployees(
         limit: Int,
         offset: Int,
+        search:String?,
         designations: [String],
         departments: [String],
         statuses: [String]
@@ -20,7 +21,7 @@ protocol EmployeeRemoteDataSourceProtocol {
     func createEmployee(_ employee: Employee) async throws
     func updateEmployee(_ employee: Employee) async throws
     func deleteEmployee(_ id: String) async throws
-    
+    func updateEmployeeDTO(_ dto: EmployeeDTO) async throws
 }
 
 final class EmployeeRemoteDataSource: EmployeeRemoteDataSourceProtocol {
@@ -41,7 +42,7 @@ final class EmployeeRemoteDataSource: EmployeeRemoteDataSourceProtocol {
         return res.data
     }
     
-    // 🔥 NEW
+    // NEW
     func fetchFilters() async throws -> FiltersResponseDTO {
         try await api.request(.filters)
     }
@@ -49,6 +50,7 @@ final class EmployeeRemoteDataSource: EmployeeRemoteDataSourceProtocol {
     func fetchFilteredEmployees(
         limit: Int,
         offset: Int,
+        search: String?,
         designations: [String],
         departments: [String],
         statuses: [String]
@@ -58,6 +60,7 @@ final class EmployeeRemoteDataSource: EmployeeRemoteDataSourceProtocol {
             .filteredEmployees(
                 limit: limit,
                 offset: offset,
+                search: search,
                 designations: designations,
                 departments: departments,
                 statuses: statuses
@@ -80,18 +83,26 @@ final class EmployeeRemoteDataSource: EmployeeRemoteDataSourceProtocol {
     }
     func updateEmployee(_ employee: Employee) async throws {
 
-        print("🌐 API UPDATE: \(employee.id)")
+        print("API UPDATE: \(employee.id)")
 
         let _: EmptyResponse = try await api.request(
-                    .updateEmployee(id: employee.id, employee: employee)
+            .updateEmployee(id: employee.id, employee: employee)
                 )
     }
     func deleteEmployee(_ id: String) async throws {
 
-        print("🌐 API DELETE: \(id)")
+        print(" API DELETE: \(id)")
 
         let _: EmptyResponse = try await api.request(
                     .deleteEmployee(id: id)
                 )
+    }
+    func updateEmployeeDTO(_ dto: EmployeeDTO) async throws {
+
+        print("API DELETE (soft): \(dto.id ?? "")")
+
+        let _: EmptyResponse = try await api.request(
+            .updateEmployeeDTO(id: dto.id ?? "", dto: dto)
+        )
     }
 }

@@ -39,6 +39,7 @@ final class EmployeeRemoteDataSource: EmployeeRemoteDataSourceProtocol {
     
     func search(limit: Int, offset: Int, query: String) async throws -> [EmployeeDTO] {
         let res: EmployeesResponseDTO = try await api.request(.search(limit: limit, offset: offset, query: query))
+        
         return res.data
     }
     

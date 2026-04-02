@@ -24,5 +24,8 @@ struct Employee: Identifiable, Equatable, Hashable{
     let joiningDate: String?
     let country: String
     let phones: [Phone]
+    
+    let createdAt: Date?   // ✅ ADD THIS
+    let deletedAt: Date?
 }
 

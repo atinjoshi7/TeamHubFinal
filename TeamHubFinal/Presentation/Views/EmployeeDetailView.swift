@@ -230,7 +230,9 @@ struct EditEmployeeView: View {
             country: country,
             phones: phones.map{
                 $0.toDomain()
-            }
+            },
+            createdAt: Date(),
+            deletedAt:nil
         )
 
         onSave(updated)

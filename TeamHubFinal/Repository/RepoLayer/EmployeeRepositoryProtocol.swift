@@ -1,10 +1,10 @@
+////
+////  EmployeeRepositoryProtocol.swift
+////  TeamHubFinal
+////
+////  Created by Atin Joshi on 24/03/26.
+////
 //
-//  EmployeeRepositoryProtocol.swift
-//  TeamHubFinal
-//
-//  Created by Atin Joshi on 24/03/26.
-//
-
 import Foundation
 protocol EmployeeRepositoryProtocol {
     
@@ -54,6 +54,10 @@ protocol EmployeeRepositoryProtocol {
     func syncDelete(_ id: String) async throws
     
     func getSyncAction(for id: String) -> String
+    
+    func clearAllEmployees()
+    
+    func save(employees:[Employee])
 }
 
 
@@ -71,7 +75,7 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
     func fetch(limit: Int, offset: Int) async throws -> (employees: [Employee], hasNext: Bool) {
         let res = try await remote.fetch(limit: limit, offset: offset)
         let domain = res.employees.map { $0.toDomain() }
-        
+        print("Api is hitting in refresh/dbNotEmpty")
         local.save(domain)
         
         return (domain, res.hasNext)
@@ -131,6 +135,10 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
         local.markSynced(id)
     }
     
+    func save(employees:[Employee]){
+        local.save(employees)
+    }
+    
     // MARK: - API Sync
     
     func syncCreate(_ employee: Employee) async throws {
@@ -141,29 +149,52 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
         try await remote.updateEmployee(employee)
     }
     
+    func clearAllEmployees() {
+        local.clearAll()
+    }
+    
+    
+//    func syncDelete(_ id: String) async throws {
+//        
+//        // Get syncAction from DB
+//        let action = local.getSyncAction(for: id)
+//        
+//        guard action == "delete" else {
+//            print("Not delete action:", action)
+//            return
+//        }
+//        
+//        let employees = local.fetchPendingSync()
+//        
+//        guard let employee = employees.first(where: { $0.id == id }) else {
+//            print("Employee not found for delete")
+//            return
+//        }
+//        
+//        var dto = employee.toDTO()
+//        dto.deletedAt = ISO8601DateFormatter().string(from: Date())
+//        
+//        print("DELETE API HIT:", id)
+//        
+//        try await remote.updateEmployeeDTO(dto)
+//    }
     func syncDelete(_ id: String) async throws {
-        
-        // Get syncAction from DB
+
         let action = local.getSyncAction(for: id)
-        
-        guard action == "delete" else {
-            print("Not delete action:", action)
-            return
+
+        guard action == "delete" else { return }
+
+        do {
+            try await remote.deleteEmployee(id)
+
+            local.markSynced(id)   // ✅ IMPORTANT
+
+            print("✅ Delete synced:", id)
+
+        } catch {
+            print("❌ Delete failed:", error)
+            throw error
         }
-        
-        let employees = local.fetchPendingSync()
-        
-        guard let employee = employees.first(where: { $0.id == id }) else {
-            print("Employee not found for delete")
-            return
-        }
-        
-        var dto = employee.toDTO()
-        dto.deletedAt = ISO8601DateFormatter().string(from: Date())
-        
-        print("DELETE API HIT:", id)
-        
-        try await remote.updateEmployeeDTO(dto)
     }
     func getSyncAction(for id: String) -> String {
         local.getSyncAction(for: id)
@@ -186,7 +217,15 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
             departments: departments,
             statuses: statuses
         )
-        
-        return (res.employees.map { $0.toDomain() }, res.hasNext)
+        let domain = res.employees
+                .map { $0.toDomain() }
+                .filter { $0.deletedAt == nil }   // ADD THIS
+
+        return (domain, res.hasNext)
+//        return (res.employees.map { $0.toDomain() }, res.hasNext)
     }
 }
+
+
+
+

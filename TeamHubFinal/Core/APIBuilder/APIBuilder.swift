@@ -142,11 +142,41 @@ enum APIEndpoint {
         }
     }
 }
+//extension Employee {
+//
+//    func toDTO() -> EmployeeDTO {
+//   
+//        EmployeeDTO(
+//            id: id,
+//            name: name,
+//            designation: designation,
+//            department: department,
+//            isActive: isActive,
+//            imgUrl: imgUrl,
+//            email: email,
+//            city: city,
+//            joiningDate: "",
+//            country: country,
+//            deletedAt: deletedAt,
+//            createdAt: createdAt,
+//            version: nil,
+//            mobiles: phones.map {
+//                PhoneDTO(
+//                    id: $0.id,
+//                    type: $0.type,
+//                    number: $0.number
+//                )
+//            }
+//        )
+//    }
+//}
 extension Employee {
 
     func toDTO() -> EmployeeDTO {
-   
-        EmployeeDTO(
+        
+        let formatter = ISO8601DateFormatter()
+
+        return EmployeeDTO(
             id: id,
             name: name,
             designation: designation,
@@ -157,7 +187,13 @@ extension Employee {
             city: city,
             joiningDate: "",
             country: country,
-            deletedAt: nil,
+
+            // ✅ ONLY send when deleting
+            deletedAt: deletedAt != nil ? formatter.string(from: deletedAt!) : nil,
+
+            // ❌ NEVER send createdAt
+            createdAt: nil,
+
             version: nil,
             mobiles: phones.map {
                 PhoneDTO(

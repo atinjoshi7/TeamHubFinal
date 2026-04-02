@@ -9,183 +9,166 @@ import Foundation
 import Combine
 import SwiftUI
 
-
-
-class HomeViewModel: ObservableObject{
-    
-    //
+@MainActor
+final class HomeViewModel: ObservableObject {
+    enum State: Equatable{
+        case idle, loading, loaded, error(String)
+    }
+    @Published private(set) var state: State = .idle
+    // MARK: - Published
     @Published private(set) var employees: [Employee] = []
-    @Published private(set) var combinedEmployees: [Employee] = [] // (Search or Filtered) OR (search andFiltered)
-    
+    @Published private(set) var combinedEmployees: [Employee] = []
+
     @Published var selectedDesignations: Set<String> = []
     @Published var selectedDepartments: Set<String> = []
     @Published var selectedStatuses: Set<String> = []
+
     @Published var isLoading = false
     @Published var isSearchingLoading = false
-    @Published private(set) var state: State = .idle
     @Published var searchQuery = ""
     @Published var cachedFilters: Filters?
-    
-    // Objects
-    private let network: NetworkMonitoring
-    private let syncManager: SyncManaging
-    let repo : EmployeeRepositoryProtocol
-    
-    // Debounce
-    private var debounceTask: Task<Void, Never>?
-    
-    // Pagination terms.
+
+    // MARK: - Dependencies
+     private let network: NetworkMonitoring
+     private let syncManager: SyncManaging
+     let repo: EmployeeRepositoryProtocol
+
+    // MARK: - Pagination (API DRIVEN)
     private var isFetching = false
     private var hasNext = true
     private var offset = 0
     private let limit = 20
-    
-   
-    // Searching Pagination
+
+    // MARK: - Search Pagination
     private var searchOffset = 0
     private var searchHasNext = true
-  
-   
-    //
-    enum State: Equatable{
-        case idle, loading, loaded, error(String)
-    }
 
+    // MARK: - Debounce
+    private var debounceTask: Task<Void, Never>?
 
-
-    var isFiltering: Bool {
-        !selectedDesignations.isEmpty ||
-        !selectedDepartments.isEmpty ||
-        !selectedStatuses.isEmpty
-    }
-    var isSearching: Bool {
-        !searchQuery.isEmpty
-    }
-    var displayEmployees: [Employee] {
-        if isSearching || isFiltering {
-            return combinedEmployees   //SINGLE PIPELINE
-        } else {
-            return employees
-        }
-    }
-    
-    init(repo:EmployeeRepositoryProtocol,network: NetworkMonitoring,syncManager: SyncManaging){
+    // MARK: - Init
+    init(
+        repo: EmployeeRepositoryProtocol,
+        network: NetworkMonitoring,
+        syncManager: SyncManaging
+    ) {
         self.repo = repo
         self.network = network
         self.syncManager = syncManager
     }
-    
-    func prepareFilters() async {
-        if network.isConnected {
-            cachedFilters = try? await repo.fetchFilters()
+
+    // MARK: - Computed
+    var isFiltering: Bool {
+        return !selectedDesignations.isEmpty ||
+               !selectedDepartments.isEmpty ||
+               !selectedStatuses.isEmpty
+    }
+
+    var isSearching: Bool {
+        return !searchQuery.isEmpty
+    }
+
+    var displayEmployees: [Employee] {
+        if isSearching || isFiltering {
+            return combinedEmployees
         } else {
-            cachedFilters = repo.fetchFiltersFromDB()
+            return employees
         }
     }
-    // MARK: Pagination Core Logic (DB FIRST)
-    func loadMore() async {
-        guard !isFetching, hasNext else { return }
-
-        isFetching = true
-        isLoading = true
-
-        // Try DB first
-        let dbData = repo.fetchFromDB(limit: limit, offset: offset)
-
-        if !dbData.isEmpty {
-            employees.append(contentsOf: dbData)
-            offset += limit
-            isFetching = false
-            isLoading = false
-            return
-        }
-
-        // If DB empty → hit API
-        do {
-            let result = try await repo.fetch(limit: limit, offset: offset)
-
-            // Save already done in repo
-            let freshFromDB = repo.fetchFromDB(limit: limit, offset: offset)
-
-            employees.append(contentsOf: freshFromDB)
-            offset += limit
-            hasNext = result.hasNext
-        } catch {
-            print(" Pagination Error: \(error)")
-        }
-
-        isFetching = false
-        isLoading = false
-    }
-    
-    func loadMoreCombined() async {
-
-        guard !isSearchingLoading, searchHasNext else { return }
-        isLoading = true
-        isSearchingLoading = true
-
-        if network.isConnected {
-
-            let result = try? await repo.fetchCombined(
-                search: searchQuery,
-                designations: Array(selectedDesignations),
-                departments: Array(selectedDepartments),
-                statuses: Array(selectedStatuses),
-                limit: limit,
-                offset: searchOffset   // single offset
-            )
-
-            let newData = result?.employees ?? []
-
-            combinedEmployees.append(contentsOf: newData)
-
-            searchOffset += limit
-            searchHasNext = result?.hasNext ?? false
-
-        } else {
-
-            combinedEmployees = repo.fetchFilteredFromDB(
-                search: searchQuery,
-                designations: Array(selectedDesignations),
-                departments: Array(selectedDepartments),
-                statuses: Array(selectedStatuses)
-            )
-
-            searchHasNext = false
-        }
-        isLoading = false
-        isSearchingLoading = false
-    }
+        
+    // MARK: - Initial Load
+//    func loadInitial() async {
+//        offset = 0
+//        hasNext = true
+//        employees.removeAll()
+//        repo.clearAllEmployees()
+//        await loadMore()
+//    }
     
     func loadInitial() async {
 
         if isSearching || isFiltering {
-
             searchOffset = 0
             searchHasNext = true
             combinedEmployees.removeAll()
-
             await loadMoreCombined()
             return
         }
 
         offset = 0
-        employees.removeAll()
         hasNext = true
 
+        // ✅ STEP 1: LOAD FROM DB FIRST
+        let dbData = repo.fetchFromDB(limit: limit, offset: offset)
+
+        if !dbData.isEmpty {
+            print("📦 Loaded from DB")
+
+            employees = dbData
+            offset += limit
+
+            // ✅ STEP 2: OPTIONAL BACKGROUND SYNC
+            if network.isConnected {
+                Task {
+                    await self.loadMore()
+                }
+            }
+
+            return
+        }
+
+        // ❌ ONLY IF DB EMPTY → HIT API
+        print("🌐 DB empty → calling API")
+
+        employees.removeAll()
         await loadMore()
     }
- 
-    
-    // MARK: Smart Trigger (IMPORTANT)
-    func loadMoreIfNeeded(currentItem: Employee) {
 
+    // MARK: - Pagination (CORE FIXED)
+    func loadMore() async {
+        if isFetching { return }
+        if hasNext == false { return }
+
+        isFetching = true
+        isLoading = true
+
+    
+        do {
+            let result = try await repo.fetch(limit: limit, offset: offset)
+
+            let allData = repo.fetchFromDB(limit: offset + limit, offset: 0)
+
+            employees = allData
+
+            offset = offset + limit
+            hasNext = result.hasNext
+
+            // 🔥 AUTO FETCH FIX (CRITICAL)
+            if employees.count < 10 && hasNext {
+                print("⚡ Auto fetching next page because visible data is low")
+                isFetching = false
+                await loadMore()
+                return
+            }
+
+            
+        } catch {
+            print("❌ Pagination Error:", error)
+        }
+
+        isFetching = false
+        isLoading = false
+    }
+    // MARK: - Scroll Trigger (FIXED)
+    func loadMoreIfNeeded(currentItem: Employee) {
         let list = displayEmployees
+
+        // 🔥 prevent auto-trigger on small list
+        if list.count < 15 { return }
 
         guard let last = list.last else { return }
 
         if currentItem.id == last.id {
-
             Task {
                 if isSearching || isFiltering {
                     await loadMoreCombined()
@@ -196,33 +179,67 @@ class HomeViewModel: ObservableObject{
         }
     }
 
-    func onSearchChanged(_ text: String) {
-            searchQuery = text
-            debounceTask?.cancel()
-        // Immediately show loader
-//        if !text.isEmpty {
-//            isSearchingLoading = true
-//        }
-            debounceTask = Task {
-                try? await Task.sleep(nanoseconds: 100_000_000)
-
-                if Task.isCancelled { return }
-
-                await performSearch()
+    // MARK: - Refresh (YOUR REQUIREMENT)
+        func refresh() async {
+    
+            guard !isFetching else { return }
+    
+            isFetching = true
+            isLoading = true
+    
+            offset = 0
+            hasNext = true
+    
+            do {
+                // ✅ STEP 1: Fetch FIRST
+                let result = try await repo.fetch(limit: limit, offset: 0)
+    
+                // ✅ STEP 2: Clear DB AFTER success
+                repo.clearAllEmployees()
+    
+                // ✅ STEP 3: Save fresh data
+                repo.save(employees: result.employees)
+    
+                // ✅ STEP 4: Load from DB
+                let fresh = repo.fetchFromDB(limit: limit, offset: 0)
+                employees = fresh
+    
+                offset = limit
+                hasNext = result.hasNext
+    
+                // ✅ AUTO PAGINATION (same fix)
+                if employees.count < 10 && hasNext {
+                    isFetching = false
+                    await loadMore()
+                    return
+                }
+    
+            } catch {
+                print("❌ Refresh failed:", error)
+    
+                // ✅ OFFLINE FALLBACK (IMPORTANT)
+                let fallback = repo.fetchFromDB(limit: limit, offset: 0)
+                employees = fallback
             }
+    
+            isFetching = false
+            isLoading = false
         }
-    func addEmployee(_ employee: Employee) {
+    // MARK: - Search
+    func onSearchChanged(_ text: String) {
+        searchQuery = text
+        debounceTask?.cancel()
 
-        repo.addEmployee(employee)
-        employees.insert(employee, at: 0)
+        debounceTask = Task {
+            try? await Task.sleep(nanoseconds: 300_000_000)
 
-        // trigger sync immediately
-        Task {
-            await syncManager.syncNow()
+            if Task.isCancelled { return }
+
+            await performSearch()
         }
     }
-    private func performSearch() async {
 
+    private func performSearch() async {
         if searchQuery.isEmpty && !isFiltering {
             await loadInitial()
             return
@@ -234,45 +251,117 @@ class HomeViewModel: ObservableObject{
 
         await loadMoreCombined()
     }
-    
-    func updateEmployee(_ employee: Employee) {
-        repo.updateEmployee(employee)
 
+    // MARK: - Combined (Search + Filter)
+    func loadMoreCombined() async {
 
-        print(" updateEmployee called:", employee.id)
-        
-        Task {
-                await syncManager.syncNow()
+        if isSearchingLoading { return }
+        if searchHasNext == false { return }
+
+        isSearchingLoading = true
+        isLoading = true
+
+        if network.isConnected {
+
+            let result = try? await repo.fetchCombined(
+                search: searchQuery,
+                designations: Array(selectedDesignations),
+                departments: Array(selectedDepartments),
+                statuses: Array(selectedStatuses),
+                limit: limit,
+                offset: searchOffset
+            )
+
+            let newData = result?.employees ?? []
+
+            //  Prevent duplicates
+            let existingIds = Set(combinedEmployees.map { $0.id })
+            let newItems = newData.filter { emp in
+                return existingIds.contains(emp.id) == false
             }
-        print(" updateEmployee called:", employee.id)
+
+            combinedEmployees.append(contentsOf: newItems)
+
+            searchOffset = searchOffset + limit
+            searchHasNext = result?.hasNext ?? false
+
+        } else {
+            combinedEmployees = repo.fetchFilteredFromDB(
+                search: searchQuery,
+                designations: Array(selectedDesignations),
+                departments: Array(selectedDepartments),
+                statuses: Array(selectedStatuses)
+            )
+
+            searchHasNext = false
+        }
+
+        isSearchingLoading = false
+        isLoading = false
     }
 
+    // MARK: - Filters
     func applyFilters(
         designations: [String],
         departments: [String],
         statuses: [String]
     ) {
-
         selectedDesignations = Set(designations)
         selectedDepartments = Set(departments)
         selectedStatuses = Set(statuses)
 
-        // RESET FILTER STATE
         searchOffset = 0
         searchHasNext = true
         combinedEmployees.removeAll()
-        Task {
-               await loadMoreCombined()
-           }
-    }
-    
-    func deleteEmployee(at offsets: IndexSet) {
 
+        Task {
+            await loadMoreCombined()
+        }
+    }
+
+    // MARK: - Add
+    func addEmployee(_ employee: Employee) {
+        repo.addEmployee(employee)
+
+        // Insert on top (UX)
+        employees.insert(employee, at: 0)
+
+        Task {
+            await syncManager.syncNow()
+        }
+    }
+
+    // MARK: - Update
+    func updateEmployee(_ employee: Employee) {
+        repo.updateEmployee(employee)
+
+        Task {
+            await syncManager.syncNow()
+        }
+    }
+
+    // MARK: - Delete (SOFT DELETE)
+    func deleteEmployee(at offsets: IndexSet) {
         offsets.forEach { index in
             let emp = displayEmployees[index]
+
             repo.deleteEmployee(emp.id)
+
+            employees.removeAll { $0.id == emp.id }
+            combinedEmployees.removeAll { $0.id == emp.id }
         }
 
-        employees.remove(atOffsets: offsets)
+        Task {
+            await syncManager.syncNow()
+        }
+    }
+
+    // MARK: - Filters preload
+    func prepareFilters() async {
+        if network.isConnected {
+            cachedFilters = try? await repo.fetchFilters()
+        } else {
+            cachedFilters = repo.fetchFiltersFromDB()
+        }
     }
 }

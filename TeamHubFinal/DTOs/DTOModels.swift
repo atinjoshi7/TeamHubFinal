@@ -24,6 +24,7 @@ struct EmployeeDTO: Codable {
     let joiningDate: String?
     let country: String?
     var deletedAt: String?
+    let createdAt: String?
     let version: Int?
     let mobiles: [PhoneDTO]?
 }
@@ -59,7 +60,8 @@ struct MetaDTO: Decodable {
 
 extension EmployeeDTO {
     func toDomain() -> Employee {
-        Employee(
+        let formatter = ISO8601DateFormatter()
+        return Employee(
             id: id ?? UUID().uuidString,
             name: name ?? "Unknown",
             designation: designation ?? "N/A",
@@ -76,7 +78,9 @@ extension EmployeeDTO {
                     type: $0.type ?? "other",
                     number: $0.number ?? ""
                 )
-            } ?? []
+            } ?? [],
+            createdAt: formatter.date(from: createdAt ?? ""),   // ✅
+            deletedAt: formatter.date(from: deletedAt ?? "")
         )
     }
 }

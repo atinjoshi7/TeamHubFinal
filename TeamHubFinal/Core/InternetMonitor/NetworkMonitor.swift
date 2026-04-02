@@ -22,9 +22,10 @@ final class NetworkMonitor: NetworkMonitoring ,ObservableObject{
     @Published private(set) var isConnected: Bool = true
 
     var onStatusChange: ((Bool) -> Void)?
-
     init() {
-        monitor.pathUpdateHandler = { [weak self] path in
+        
+        monitor.pathUpdateHandler = {
+            [weak self] path in
             guard let self = self else { return }
 
             DispatchQueue.main.async {

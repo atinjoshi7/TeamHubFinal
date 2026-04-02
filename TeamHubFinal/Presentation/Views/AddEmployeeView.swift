@@ -136,7 +136,10 @@ struct AddEmployeeView: View {
             city: city,
             joiningDate: nil,
             country: country,
-            phones: phones.map { $0.toDomain() }
+            phones: phones.map { $0.toDomain() },
+            createdAt: nil,
+            deletedAt: nil,
+           
         )
 
         onSave(employee)

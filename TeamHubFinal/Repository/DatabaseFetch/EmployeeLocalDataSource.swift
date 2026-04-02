@@ -44,6 +44,7 @@ protocol EmployeeLocalDataSourceProtocol {
     func fetchPendingSync() -> [Employee]
     func markSynced(_ id: String)
     func getSyncAction(for id: String) -> String
+    func clearAll()
 }
 final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
 
@@ -59,11 +60,14 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
 
         let req: NSFetchRequest<EmployeeEntity> = EmployeeEntity.fetchRequest()
 
-        req.predicate = NSPredicate(
+        let searchPredicate = NSPredicate(
             format: "name CONTAINS[cd] %@ OR designation CONTAINS[cd] %@ OR department CONTAINS[cd] %@",
             query, query, query
         )
-
+        let notDeleted = NSPredicate(format: "deletedAt == nil")
+        req.predicate = NSCompoundPredicate(
+                andPredicateWithSubpredicates: [notDeleted, searchPredicate]
+            )
         return (try? stack.viewContext.fetch(req))?.map { $0.toDomain() } ?? []
     }
 
@@ -114,10 +118,31 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
                 p.number = phone.number
                 p.employee = entity
             }
+            entity.createdAt = emp.createdAt   // ✅ ADD
+            entity.deletedAt = emp.deletedAt   // already added
         }
 
         stack.save(context: ctx)
     }
+    
+    // Empty the DB
+    
+    func clearAll() {
+        let ctx = stack.viewContext
+        let req: NSFetchRequest<NSFetchRequestResult> = EmployeeEntity.fetchRequest()
+        let deleteReq = NSBatchDeleteRequest(fetchRequest: req)
+
+        do {
+            try ctx.execute(deleteReq)
+            stack.save(context: ctx)
+            print("🧹 DB Cleared")
+        } catch {
+            print("❌ Failed to clear DB:", error)
+        }
+    }
+   
+    
+    
     // MARK: - UPDATE (User Edit)
 
     func update(_ employee: Employee) {
@@ -152,7 +177,7 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
         entity.needSync = true
         entity.syncAction = "update"
         entity.updatedAt = Date()
-        entity.isDelete = false
+        entity.deletedAt = nil
         print("🔥 needSync:", entity.needSync)
         print("🔥 syncAction:", entity.syncAction ?? "")
         // MARK: - Phones
@@ -176,9 +201,10 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
         let ctx = stack.viewContext
 
         let req: NSFetchRequest<EmployeeEntity> = EmployeeEntity.fetchRequest()
+        req.predicate = NSPredicate(format: "deletedAt == nil")
         req.fetchLimit = limit
         req.fetchOffset = offset
-        req.sortDescriptors = [NSSortDescriptor(key: "id", ascending: true)]
+        req.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
         req.returnsObjectsAsFaults = false
 
         return (try? ctx.fetch(req))?.map { $0.toDomain() } ?? []
@@ -240,9 +266,11 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
             let boolValues = statuses.map { $0 == "active" }
             predicates.append(NSPredicate(format: "isActive IN %@", boolValues))
         }
-
+        
         req.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
-
+        req.sortDescriptors = [
+            NSSortDescriptor(key: "createdAt", ascending: false)
+        ]
         return (try? stack.viewContext.fetch(req))?.map { $0.toDomain() } ?? []
     }
     func add(_ employee: Employee) {
@@ -260,12 +288,11 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
         entity.email = employee.email
         entity.city = employee.city
         entity.country = employee.country
-
+        entity.createdAt = Date()
         entity.needSync = true
         entity.syncAction = "create"
         entity.updatedAt = Date()
-        entity.isDelete = false
-
+        entity.deletedAt = nil
         employee.phones.forEach { phone in
             let p = PhoneEntity(context: ctx)
             p.id = phone.id
@@ -286,7 +313,7 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
 
         guard let entity = try? ctx.fetch(req).first else { return }
 
-        entity.isDelete = true
+        entity.deletedAt = Date()
         entity.needSync = true
         entity.syncAction = "delete"
         entity.updatedAt = Date()
@@ -347,7 +374,9 @@ extension EmployeeEntity {
                     type: $0.type ?? "",
                     number: $0.number ?? ""
                 )
-            }
+            },
+            createdAt: createdAt,
+            deletedAt: deletedAt
         )
     }
   

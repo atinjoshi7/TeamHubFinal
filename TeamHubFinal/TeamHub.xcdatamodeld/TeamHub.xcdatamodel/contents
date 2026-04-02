@@ -3,13 +3,14 @@
     <entity name="EmployeeEntity" representedClassName="EmployeeEntity" syncable="YES" codeGenerationType="class">
         <attribute name="city" attributeType="String"/>
         <attribute name="country" attributeType="String"/>
+        <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="deletedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
         <attribute name="department" attributeType="String" spotlightIndexingEnabled="YES"/>
         <attribute name="designation" attributeType="String" spotlightIndexingEnabled="YES"/>
         <attribute name="email" attributeType="String"/>
         <attribute name="id" attributeType="String" spotlightIndexingEnabled="YES"/>
         <attribute name="imgURL" optional="YES" attributeType="String"/>
         <attribute name="isActive" attributeType="Boolean" usesScalarValueType="YES"/>
-        <attribute name="isDelete" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>
         <attribute name="joiningDate" optional="YES" attributeType="String"/>
         <attribute name="name" attributeType="String" spotlightIndexingEnabled="YES"/>
         <attribute name="needSync" optional="YES" attributeType="Boolean" usesScalarValueType="YES"/>

@@ -151,7 +151,7 @@ extension HomeView {
                 EmployeeRowView(employee: employee)
                     
                     .onAppear {
-                        Task {  vm.loadMoreIfNeeded(currentItem: employee, ) }
+                        Task {  vm.loadMoreIfNeeded(currentItem: employee) }
                     }
                     .onTapGesture {
                         path.append(employee)
@@ -164,15 +164,16 @@ extension HomeView {
                 HStack {
                     Spacer()
                     ProgressView()
-                        
+                        .frame(height: 50)
                     Spacer()
                 }
+                .id(UUID())
             }
         }
         .scrollDismissesKeyboard(.immediately)
         .listStyle(.plain)
         .refreshable {
-            await vm.loadInitial()
+            await vm.refresh()
         }
     }
 }

@@ -9,24 +9,27 @@ import SwiftUI
 struct AddEmployeeView: View {
 
     @Environment(\.dismiss) private var dismiss
-  
+    let departments:[String]
+    let designations:[String]
+    var onSave: (Employee) -> Void
 
     @State private var name = ""
     @State private var email = ""
     @State private var city = ""
     @State private var country = ""
     @State private var isActive = true
-    @StateObject private var vm: FilterViewModel
+    
     
     @State private var phones: [EditablePhone] = []
     @State private var selectedDepartment: String = ""
     @State private var selectedDesignation: String = ""
     private let phoneTypes = ["home", "office", "other"]
     
-    init(vm: FilterViewModel, onSave: @escaping (Employee) -> Void) {
-        _vm = StateObject(wrappedValue: vm)
-        self.onSave = onSave
-    }
+//    init(vm: FilterViewModel, onSave: @escaping (Employee) -> Void) {
+//        _vm = StateObject(wrappedValue: vm)
+//        self.onSave = onSave
+//    }
+    
 
     var body: some View {
         NavigationStack {
@@ -38,22 +41,22 @@ struct AddEmployeeView: View {
                     TextField("City", text: $city)
                     TextField("Country", text: $country)
                     // 🔥 Department Dropdown
-                       Picker("Department", selection: $selectedDepartment) {
-                           Text("Select Department").tag("")
-                           ForEach(Array(Set(vm.filters.departments)).sorted(), id: \.self) { dept in
-                               Text(dept).tag(dept)
-                           }
-                       }
-                       .pickerStyle(.menu)
+                    Picker("Department", selection: $selectedDepartment) {
+                                            Text("Select Department").tag("")
+                                            ForEach(departments.sorted(), id: \.self) { dept in
+                                                Text(dept).tag(dept)
+                                            }
+                                        }
+                                        .pickerStyle(.menu)
 
                        // 🔥 Designation Dropdown
-                       Picker("Designation", selection: $selectedDesignation) {
-                           Text("Select Designation").tag("")
-                           ForEach(Array(Set(vm.filters.designations)).sorted(), id: \.self) { des in
-                               Text(des).tag(des)
-                           }
-                       }
-                       .pickerStyle(.menu)
+                    Picker("Designation", selection: $selectedDesignation) {
+                                            Text("Select Designation").tag("")
+                                            ForEach(designations.sorted(), id: \.self) { des in
+                                                Text(des).tag(des)
+                                            }
+                                        }
+                                        .pickerStyle(.menu)
 
                     Toggle("Active", isOn: $isActive)
                 }
@@ -84,9 +87,6 @@ struct AddEmployeeView: View {
                         }
                     }
                 }
-            }.task(id:"one-time"){
-                print("filter api Called")
-                await vm.fetchFilters()
             }
             .navigationTitle("Add Employee")
             .toolbar {

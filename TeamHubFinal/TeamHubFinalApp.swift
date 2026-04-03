@@ -24,7 +24,9 @@ struct TeamHubFinalApp: App {
                 .preferredColorScheme(themeManager.colorScheme)
                 .onAppear {
                     container.syncManager.start()
+                    container.syncManager.startAutoSync()
                 }
+                
         }
     }
 }

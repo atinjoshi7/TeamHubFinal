@@ -7,7 +7,7 @@
 
 import Foundation
 protocol EmployeeRemoteDataSourceProtocol {
-    func fetch(limit: Int, offset: Int) async throws -> (employees: [EmployeeDTO], hasNext: Bool)
+    func fetch(limit: Int, offset: Int) async throws -> EmployeesResponseDTO
     func search(limit: Int, offset: Int, query: String) async throws -> [EmployeeDTO]
     func fetchFilters() async throws -> FiltersResponseDTO
     func fetchFilteredEmployees(
@@ -17,11 +17,12 @@ protocol EmployeeRemoteDataSourceProtocol {
         designations: [String],
         departments: [String],
         statuses: [String]
-    ) async throws -> (employees: [EmployeeDTO], hasNext: Bool)
+    ) async throws -> EmployeesResponseDTO
     func createEmployee(_ employee: Employee) async throws
     func updateEmployee(_ employee: Employee) async throws
     func deleteEmployee(_ id: String) async throws
     func updateEmployeeDTO(_ dto: EmployeeDTO) async throws
+    func sync(seq: Int) async throws -> SyncResponseDTO
 }
 
 final class EmployeeRemoteDataSource: EmployeeRemoteDataSourceProtocol {
@@ -32,9 +33,9 @@ final class EmployeeRemoteDataSource: EmployeeRemoteDataSourceProtocol {
         self.api = api
     }
     
-    func fetch(limit: Int, offset: Int) async throws -> (employees: [EmployeeDTO], hasNext: Bool) {
+    func fetch(limit: Int, offset: Int) async throws -> EmployeesResponseDTO {
         let res: EmployeesResponseDTO = try await api.request(.employees(limit: limit, offset: offset))
-        return (res.data, res.meta.hasNextPage)
+        return res
     }
     
     func search(limit: Int, offset: Int, query: String) async throws -> [EmployeeDTO] {
@@ -55,7 +56,7 @@ final class EmployeeRemoteDataSource: EmployeeRemoteDataSourceProtocol {
         designations: [String],
         departments: [String],
         statuses: [String]
-    ) async throws -> (employees: [EmployeeDTO], hasNext: Bool) {
+    ) async throws -> EmployeesResponseDTO {
         
         let res: EmployeesResponseDTO = try await api.request(
             .filteredEmployees(
@@ -68,10 +69,7 @@ final class EmployeeRemoteDataSource: EmployeeRemoteDataSourceProtocol {
             )
         )
         
-        return (
-            res.data,
-            res.meta.hasNextPage
-        )
+        return res
     }
     func createEmployee(_ employee: Employee) async throws {
 
@@ -105,5 +103,9 @@ final class EmployeeRemoteDataSource: EmployeeRemoteDataSourceProtocol {
         let _: EmptyResponse = try await api.request(
             .updateEmployeeDTO(id: dto.id ?? "", dto: dto)
         )
+    }
+    func sync(seq: Int) async throws -> SyncResponseDTO {
+        print("Entered in Remote Sync function")
+        return try await api.request(.sync(seq: seq))
     }
 }

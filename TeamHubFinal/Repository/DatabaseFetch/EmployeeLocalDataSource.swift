@@ -7,7 +7,7 @@
 
 import Foundation
 import CoreData
-
+import Combine
 
 protocol EmployeeLocalDataSourceProtocol {
 
@@ -39,12 +39,20 @@ protocol EmployeeLocalDataSourceProtocol {
     
     // Delete from DB
     func delete(_ id: String)
-    
+    func fetchAll(limit: Int) -> [Employee]
     
     func fetchPendingSync() -> [Employee]
     func markSynced(_ id: String)
     func getSyncAction(for id: String) -> String
     func clearAll()
+    
+    func softDelete(_ id: String, date: Date?)
+    
+    func get(by id: String) -> Employee?
+    
+    func updateFromServer(_ employee: Employee)
+    func observeEmployees(limit: Int) -> AnyPublisher<[Employee], Never>
+    
 }
 final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
 
@@ -71,6 +79,33 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
         return (try? stack.viewContext.fetch(req))?.map { $0.toDomain() } ?? []
     }
 
+    
+    func observeEmployees(limit: Int) -> AnyPublisher<[Employee], Never> {
+
+        let context = stack.viewContext
+
+        let request: NSFetchRequest<EmployeeEntity> = EmployeeEntity.fetchRequest()
+        request.predicate = NSPredicate(format: "deletedAt == nil")
+        request.sortDescriptors = [
+            NSSortDescriptor(key: "createdAt", ascending: false)
+        ]
+        request.fetchLimit = limit
+
+        return NotificationCenter.default.publisher(
+            for: .NSManagedObjectContextDidSave,
+            object: context
+        )
+        .map { _ in
+            (try? context.fetch(request))?.map { $0.toDomain() } ?? []
+        }
+        .prepend(
+            (try? context.fetch(request))?.map { $0.toDomain() } ?? []
+        )
+        .eraseToAnyPublisher()
+    }
+    
+    
+    
     // MARK: - SAVE (Batch Insert + Protect Local Edits)
     func save(_ employees: [Employee]) {
 
@@ -124,6 +159,54 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
 
         stack.save(context: ctx)
     }
+    
+    func softDelete(_ id: String, date: Date?) {
+        let req: NSFetchRequest<EmployeeEntity> = EmployeeEntity.fetchRequest()
+        req.predicate = NSPredicate(format: "id == %@", id)
+
+        guard let entity = try? stack.viewContext.fetch(req).first else { return }
+
+        entity.deletedAt = date ?? Date()
+        stack.save(context: stack.viewContext)
+    }
+    
+    func get(by id: String) -> Employee? {
+        let req: NSFetchRequest<EmployeeEntity> = EmployeeEntity.fetchRequest()
+        req.predicate = NSPredicate(format: "id == %@", id)
+
+        return try? stack.viewContext.fetch(req).first?.toDomain()
+    }
+    
+    func updateFromServer(_ employee: Employee) {
+
+        let ctx = stack.viewContext
+
+        let req: NSFetchRequest<EmployeeEntity> = EmployeeEntity.fetchRequest()
+        req.predicate = NSPredicate(format: "id == %@", employee.id)
+
+        guard let entity = try? ctx.fetch(req).first else { return }
+
+        // ❗ DO NOT TOUCH needSync if local changes exist
+        if entity.needSync == true {
+            print("⚠️ Skipping server update due to local changes")
+            return
+        }
+
+        entity.name = employee.name
+        entity.designation = employee.designation
+        entity.department = employee.department
+        entity.isActive = employee.isActive
+        entity.imgURL = employee.imgUrl
+        entity.email = employee.email
+        entity.city = employee.city
+        entity.country = employee.country
+        entity.deletedAt = employee.deletedAt
+        entity.updatedAt = Date()
+
+        stack.save(context: ctx)
+    }
+    
+    
     
     // Empty the DB
     
@@ -197,19 +280,31 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
         stack.save(context: ctx)
     }
     // MARK: - FETCH
+
     func fetch(limit: Int, offset: Int) -> [Employee] {
         let ctx = stack.viewContext
 
         let req: NSFetchRequest<EmployeeEntity> = EmployeeEntity.fetchRequest()
-        req.predicate = NSPredicate(format: "deletedAt == nil")
+
+        // ❌ REMOVE FILTER
+        // req.predicate = NSPredicate(format: "deletedAt == nil")
+
         req.fetchLimit = limit
         req.fetchOffset = offset
-        req.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
+
+        req.sortDescriptors = [
+            NSSortDescriptor(key: "createdAt", ascending: false)
+        ]
+        
         req.returnsObjectsAsFaults = false
 
         return (try? ctx.fetch(req))?.map { $0.toDomain() } ?? []
     }
-
+    func fetchAll(limit: Int) -> [Employee] {
+        fetch(limit: limit, offset: 0)
+    }
+    
+    
     // MARK: - COUNT
     func count() -> Int {
         (try? stack.viewContext.count(for: EmployeeEntity.fetchRequest())) ?? 0

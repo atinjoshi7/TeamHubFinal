@@ -10,6 +10,9 @@ import Foundation
 protocol SyncManaging {
     func start()
     func syncNow() async
+    func startAutoSync()
+    func stopAutoSync()
+    func syncFromServer() async
 }
 
 final class SyncManager: SyncManaging {
@@ -18,7 +21,7 @@ final class SyncManager: SyncManaging {
     private var network: NetworkMonitoring
 
     private var isSyncing = false
-
+    private var syncTimer: Timer?
     init(repo: EmployeeRepositoryProtocol,
          network: NetworkMonitoring) {
         self.repo = repo
@@ -69,6 +72,32 @@ final class SyncManager: SyncManaging {
         isSyncing = false
 
         print("Sync finished")
+    }
+    
+    func startAutoSync() {
+        
+        stopAutoSync() // prevent duplicates
+
+        syncTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+            Task {
+                await self?.repo.syncFromServer()
+            }
+        }
+    }
+    
+    func stopAutoSync() {
+        syncTimer?.invalidate()
+        syncTimer = nil
+    }
+    func syncFromServer() async {
+
+        guard !isSyncing else { return }
+        isSyncing = true
+
+        do { isSyncing = false }
+
+        // your sync logic
+        startAutoSync()
     }
 }
 extension SyncManager {

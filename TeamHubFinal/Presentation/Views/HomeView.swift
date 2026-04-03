@@ -4,31 +4,40 @@
 //
 //  Created by Atin Joshi on 24/03/26.
 //
-
 import SwiftUI
 
 struct HomeView: View {
-    
+
+    @Environment(\.scenePhase) private var scenePhase
+    @EnvironmentObject private var network: NetworkMonitor
+    @EnvironmentObject private var theme: ThemeManager
+
     @StateObject private var vm: HomeViewModel
     @State private var path = NavigationPath()
-    @FocusState private var isFocused: Bool
-    @EnvironmentObject private var network: NetworkMonitor
+
     @State private var showFilterSheet = false
     @State private var showAddSheet = false
-    @EnvironmentObject private var theme: ThemeManager
+
+    @FocusState private var isFocused: Bool
+
     init(vm: HomeViewModel) {
         _vm = StateObject(wrappedValue: vm)
     }
-    
+
     var body: some View {
+
         NavigationStack(path: $path) {
+
             VStack(spacing: 0) {
-                
+
+                // 🔍 SEARCH + THEME
                 HStack {
 
                     SearchBarView(
                         text: $vm.searchQuery,
-                        onChange: vm.onSearchChanged,
+                        onChange: { _ in
+                            Task { await vm.performSearch() }
+                        },
                         isFocused: $isFocused
                     )
 
@@ -38,15 +47,17 @@ struct HomeView: View {
                         }
                     } label: {
                         Image(systemName: theme.isDarkMode ? "moon.fill" : "sun.max.fill")
-                            .font(.system(size: 18, weight: .semibold))
                             .frame(width: 40, height: 40)
                             .background(Color(.systemGray6))
                             .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
                 }
+
                 contentView
             }
             .navigationTitle("Employees")
+
+            // 🔁 Navigation
             .navigationDestination(for: Employee.self) { employee in
                 EmployeeDetailView(
                     vm: EmployeeDetailViewModel(employee: employee),
@@ -55,123 +66,133 @@ struct HomeView: View {
                     }
                 )
             }
+
+            // 👆 dismiss keyboard
             .simultaneousGesture(
                 TapGesture().onEnded {
                     isFocused = false
                 }
             )
+            
+            // 🚀 Initial load
             .task {
+                await vm.filters()
                 await vm.loadInitial()
-                await vm.prepareFilters()
+               
             }
+
+            // 🧰 Toolbar
             .toolbar {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
+
                     Button {
-
-                        Task {
-
-                              // Check cache FIRST
-                              if vm.cachedFilters != nil {
-                                  showFilterSheet = true
-                                  return
-                              }
-                              
-                          }
+                        showFilterSheet = true
                     } label: {
                         Image(systemName: "line.3.horizontal.decrease.circle")
                     }
+
                     Button {
-                               showAddSheet = true
-                           } label: {
-                               Image(systemName: "plus")
-                           }
+                        showAddSheet = true
+                    } label: {
+                        Image(systemName: "plus")
+                    }
                 }
             }
+
+            // ➕ Add Employee
             .sheet(isPresented: $showAddSheet) {
                 AddEmployeeView(
-                    vm: FilterViewModel(repo: vm.repo,
-                                        network: network,
-                                        initialFilters: vm.cachedFilters
-                                       )
+                    departments: vm.allDepartments,
+                    designations: vm.allDesignations
                 ) { newEmployee in
                     vm.addEmployee(newEmployee)
                 }
             }
+
+            // 🎯 Filters
             .sheet(isPresented: $showFilterSheet) {
                 FilterView(
-                       vm: FilterViewModel(
-                           repo: vm.repo,
-                           network: network,
-                           initialFilters: vm.cachedFilters //pass preloaded
-                       )
-                   ) { designations, departments, statuses in
-
-                    vm.applyFilters(
-                        designations: Array(designations),
-                        departments: Array(departments),
-                        statuses: Array(statuses)
+                    vm: FilterViewModel(
+                        repo: vm.repo,
+                        network: network,
+                        initialFilters: nil
                     )
+                ) { designations, departments, statuses in
+
+                    vm.selectedDesignations = designations
+                    vm.selectedDepartments = departments
+                    vm.selectedStatuses = statuses
+
+                    Task {
+                        await vm.performSearch()
+                    }
                 }
             }
+//            .onChange(of: scenePhase) { _, phase in
+//                if phase == .active {
+//                    Task {
+//                        await vm.repo.syncFromServer()
+//                    }
+//                }
+//            }
         }
     }
 }
 
-// MARK: - VIEW EXTENSIONS
-
 extension HomeView {
-    
+
     @ViewBuilder
     private var contentView: some View {
-        
-        if vm.displayEmployees.isEmpty && vm.state == .loading {
+
+        if vm.isLoading && vm.displayEmployees.isEmpty {
             ProgressView()
                 .frame(maxHeight: .infinity)
         }
         else if vm.displayEmployees.isEmpty {
-            
-            if vm.isSearchingLoading {
-                   ProgressView("Searching...")
-                    .frame(maxHeight:.infinity)
-               } else {
-                   EmptyStateView()
-               }
+            EmptyStateView()
         }
         else {
             listView
         }
     }
 }
-
 extension HomeView {
-    
+
     private var listView: some View {
+
         List {
+
             ForEach(vm.displayEmployees) { employee in
+
                 EmployeeRowView(employee: employee)
-                    
+
                     .onAppear {
-                        Task {  vm.loadMoreIfNeeded(currentItem: employee) }
+                        // SIMPLE PAGINATION TRIGGER
+                        if employee.id == vm.displayEmployees.last?.id {
+                            Task { await vm.loadMore() }
+                        }
                     }
+
                     .onTapGesture {
                         path.append(employee)
                     }
+
                     .contentShape(Rectangle())
             }
             .onDelete(perform: vm.deleteEmployee)
-            
+
             if vm.isLoading {
                 HStack {
                     Spacer()
                     ProgressView()
-                        .frame(height: 50)
                     Spacer()
                 }
-                .id(UUID())
             }
         }
-        .scrollDismissesKeyboard(.immediately)
         .listStyle(.plain)
+        .scrollDismissesKeyboard(.immediately)
+
+        // 🔥 CLEAN REFRESH (no syncManager here anymore)
         .refreshable {
             await vm.refresh()
         }

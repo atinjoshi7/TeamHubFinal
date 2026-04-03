@@ -17,8 +17,8 @@ struct FilterView: View {
 
     init(vm: FilterViewModel,
          onApply: @escaping (Set<String>, Set<String>, Set<String>) -> Void) {
-        _vm = StateObject(wrappedValue: vm)
-        self.onApply = onApply
+                 _vm = StateObject(wrappedValue: vm)
+                 self.onApply = onApply
     }
 
     var body: some View {

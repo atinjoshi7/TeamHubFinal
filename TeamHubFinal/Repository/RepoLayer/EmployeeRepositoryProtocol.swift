@@ -1,231 +1,268 @@
+//////
+//////  EmployeeRepositoryProtocol.swift
+//////  TeamHubFinal
+//////
+//////  Created by Atin Joshi on 24/03/26.
+//////
 ////
-////  EmployeeRepositoryProtocol.swift
-////  TeamHubFinal
-////
-////  Created by Atin Joshi on 24/03/26.
-////
-//
+
 import Foundation
+import Combine
+import CoreData
 protocol EmployeeRepositoryProtocol {
-    
-    func fetch(limit: Int, offset: Int) async throws -> (employees: [Employee], hasNext: Bool)
-    
-    func fetchFromDB(limit: Int, offset: Int) -> [Employee]
-    
-    func search(query: String, limit: Int, offset:Int) async throws -> [Employee]
-    
-    func updateEmployee(_ employee: Employee)
-    
-    func addEmployee(_ employee: Employee)
-    
-    func deleteEmployee(_ id: String)
-    
-    func fetchFilters() async throws -> Filters
-    
-    func fetchFiltersFromDB() -> Filters
-    
-    func fetchFilteredFromDB(
-        search: String?,
+
+    // MARK: List
+    func loadInitial() async -> [Employee]
+    func loadMore() async -> [Employee]
+    func refresh() async -> [Employee]
+
+    // MARK: Search + Filter
+    func search(
+        query: String?,
         designations: [String],
         departments: [String],
         statuses: [String]
-    ) -> [Employee]
-    
-    func fetchCombined(
-        search:String?,
-        designations: [String],
-        departments: [String],
-        statuses: [String],
-        limit: Int,
-        offset: Int
-    ) async throws -> (employees: [Employee], hasNext: Bool)
-    
-    func searchLocal(query: String) -> [Employee]
-    
-    // Sync
-    func fetchPendingSync() -> [Employee]
-    
-    func markSynced(_ id: String)
-    
-    func syncCreate(_ employee: Employee) async throws
-    
-    func syncUpdate(_ employee: Employee) async throws
-    
-    func syncDelete(_ id: String) async throws
-    
-    func getSyncAction(for id: String) -> String
-    
-    func clearAllEmployees()
-    
-    func save(employees:[Employee])
+    ) async -> [Employee]
+
+    // MARK: CRUD
+    func addEmployee(_ employee: Employee)
+    func updateEmployee(_ employee: Employee)
+    func deleteEmployee(_ id: String)
+
+    // MARK: Filters
+    func fetchFilters() async -> Filters
+    func fetchFiltersFromDB() -> Filters
+
+    // MARK: Sync
+    func syncFromServer() async
+
+       func fetchPendingSync() -> [Employee]
+       func markSynced(_ id: String)
+   
+       func syncCreate(_ employee: Employee) async throws
+       func syncUpdate(_ employee: Employee) async throws
+       func syncDelete(_ id: String) async throws
+   
+       func getSyncAction(for id: String) -> String
+      func fetchFromLocal(limit: Int) -> [Employee]
+    func observeEmployees(limit: Int) -> AnyPublisher<[Employee], Never>
 }
 
-
 final class EmployeeRepository: EmployeeRepositoryProtocol {
-    
+
     private let remote: EmployeeRemoteDataSourceProtocol
     private let local: EmployeeLocalDataSourceProtocol
-    
+    private let network: NetworkMonitoring
+
+    private var offset = 0
+    private let limit = 20
+    private var hasNext = true
+
     init(remote: EmployeeRemoteDataSourceProtocol,
-         local: EmployeeLocalDataSourceProtocol) {
+         local: EmployeeLocalDataSourceProtocol,
+         network: NetworkMonitor) {
         self.remote = remote
         self.local = local
+        self.network = network
+    }
+
+    // MARK: - INITIAL
+
+    func loadInitial() async -> [Employee] {
+
+        offset = 0
+        hasNext = true
+
+        let db = local.fetch(limit: limit, offset: offset)
+
+        if !db.isEmpty {
+            return db.filter { $0.deletedAt == nil }
+        }
+
+        return await loadMore()
+    }
+
+    // MARK: - PAGINATION
+
+    func loadMore() async -> [Employee] {
+
+        guard hasNext else {
+            return local.fetch(limit: offset, offset: 0)
+                .filter { $0.deletedAt == nil }
+        }
+
+        if network.isConnected {
+            do {
+                let res = try await remote.fetch(limit: limit, offset: offset)
+
+                let domain = res.data.map { $0.toDomain() }
+
+                local.save(domain)
+
+                offset += limit
+                hasNext = res.meta.hasNextPage
+
+            } catch {
+                print("❌ API fail, fallback DB")
+            }
+        }
+
+        return local.fetch(limit: offset, offset: 0)
+            .filter { $0.deletedAt == nil }
     }
     
-    func fetch(limit: Int, offset: Int) async throws -> (employees: [Employee], hasNext: Bool) {
-        let res = try await remote.fetch(limit: limit, offset: offset)
-        let domain = res.employees.map { $0.toDomain() }
-        print("Api is hitting in refresh/dbNotEmpty")
-        local.save(domain)
-        
-        return (domain, res.hasNext)
+    
+    func fetchFromLocal(limit: Int) -> [Employee] {
+        local.fetch(limit: limit, offset: 0)
+    }
+
+    // Observe Employee
+    func observeEmployees(limit: Int) -> AnyPublisher<[Employee], Never> {
+        local.observeEmployees(limit: limit)
     }
     
-    func fetchFromDB(limit: Int, offset: Int) -> [Employee] {
-        local.fetch(limit: limit, offset: offset)
-    }
     
-    func search(query: String, limit: Int, offset: Int) async throws -> [Employee] {
-        let res = try await remote.search(limit: limit, offset: offset, query: query)
-        return res.map { $0.toDomain() }
+    // MARK: - REFRESH
+
+    func refresh() async -> [Employee] {
+
+        offset = 0
+        hasNext = true
+
+        guard network.isConnected else {
+            return local.fetch(limit: limit, offset: 0)
+        }
+
+        do {
+            let res = try await remote.fetch(limit: limit, offset: offset)
+
+            let domain = res.data.map { $0.toDomain() }
+
+            local.clearAll()
+            local.save(domain)
+            offset = limit
+            hasNext = res.meta.hasNextPage
+
+            return domain
+
+        } catch {
+            return local.fetch(limit: limit, offset: 0)
+        }
     }
-    
-    func updateEmployee(_ employee: Employee) {
-        local.update(employee)
-    }
-    
-    func searchLocal(query: String) -> [Employee] {
-        local.search(query: query)
-    }
-    func fetchFilters() async throws -> Filters {
-        let dto = try await remote.fetchFilters()
-        return dto.toDomain()
-    }
-    
-    func fetchFiltersFromDB() -> Filters {
-        local.fetchFiltersFromDB()
-    }
-    
-    func fetchFilteredFromDB(
-        search: String?,
+
+    // MARK: - SEARCH + FILTER (UNIFIED)
+
+    func search(
+        query: String?,
         designations: [String],
         departments: [String],
         statuses: [String]
-    ) -> [Employee] {
-        local.fetchFiltered(
-            search: search,
+    ) async -> [Employee] {
+
+        if network.isConnected {
+            do {
+                let res = try await remote.fetchFilteredEmployees(
+                    limit: 50,
+                    offset: 0,
+                    search: query,
+                    designations: designations,
+                    departments: departments,
+                    statuses: statuses
+                )
+
+                return res.data
+                    .map { $0.toDomain() }
+                    .filter { $0.deletedAt == nil }
+
+            } catch {
+                print("❌ API search fail → fallback DB")
+            }
+        }
+
+        return local.fetchFiltered(
+            search: query,
             designations: designations,
             departments: departments,
             statuses: statuses
         )
     }
+
+    // MARK: - CRUD
+
     func addEmployee(_ employee: Employee) {
         local.add(employee)
     }
-    
+
+    func updateEmployee(_ employee: Employee) {
+        local.update(employee)
+    }
+
     func deleteEmployee(_ id: String) {
         local.delete(id)
+    }
+
+    // MARK: - FILTERS
+
+    func fetchFilters() async -> Filters {
+        (try? await remote.fetchFilters().toDomain()) ?? local.fetchFiltersFromDB()
+    }
+
+    func fetchFiltersFromDB() -> Filters {
+        local.fetchFiltersFromDB()
+    }
+
+    // MARK: - SYNC
+
+    func syncFromServer() async {
+
+        let lastSeq = UserDefaults.standard.integer(forKey: "sync_seq")
+
+        do {
+            let res = try await remote.sync(seq: lastSeq)
+
+            let employees = res.data.employees.map { $0.toDomain() }
+
+            for emp in employees {
+
+                if emp.deletedAt != nil {
+                    local.softDelete(emp.id, date: emp.deletedAt)
+                } else {
+                    local.updateFromServer(emp)
+                }
+            }
+
+            UserDefaults.standard.set(res.data.nextCursor.seq, forKey: "sync_seq")
+
+            NotificationCenter.default.post(name: .didSyncData, object: nil)
+
+        } catch {
+            print("❌ Sync failed:", error)
+        }
     }
     
     func fetchPendingSync() -> [Employee] {
         local.fetchPendingSync()
     }
-    
+
     func markSynced(_ id: String) {
         local.markSynced(id)
     }
-    
-    func save(employees:[Employee]){
-        local.save(employees)
-    }
-    
-    // MARK: - API Sync
-    
-    func syncCreate(_ employee: Employee) async throws {
-        try await remote.createEmployee(employee)
-    }
-    
-    func syncUpdate(_ employee: Employee) async throws {
-        try await remote.updateEmployee(employee)
-    }
-    
-    func clearAllEmployees() {
-        local.clearAll()
-    }
-    
-    
-//    func syncDelete(_ id: String) async throws {
-//        
-//        // Get syncAction from DB
-//        let action = local.getSyncAction(for: id)
-//        
-//        guard action == "delete" else {
-//            print("Not delete action:", action)
-//            return
-//        }
-//        
-//        let employees = local.fetchPendingSync()
-//        
-//        guard let employee = employees.first(where: { $0.id == id }) else {
-//            print("Employee not found for delete")
-//            return
-//        }
-//        
-//        var dto = employee.toDTO()
-//        dto.deletedAt = ISO8601DateFormatter().string(from: Date())
-//        
-//        print("DELETE API HIT:", id)
-//        
-//        try await remote.updateEmployeeDTO(dto)
-//    }
-    func syncDelete(_ id: String) async throws {
 
-        let action = local.getSyncAction(for: id)
-
-        guard action == "delete" else { return }
-
-        do {
-            try await remote.deleteEmployee(id)
-
-            local.markSynced(id)   // ✅ IMPORTANT
-
-            print("✅ Delete synced:", id)
-
-        } catch {
-            print("❌ Delete failed:", error)
-            throw error
-        }
-    }
     func getSyncAction(for id: String) -> String {
         local.getSyncAction(for: id)
     }
-    
-    func fetchCombined(
-        search: String?,
-        designations: [String],
-        departments: [String],
-        statuses: [String],
-        limit: Int,
-        offset: Int
-    ) async throws -> (employees: [Employee], hasNext: Bool) {
-        
-        let res = try await remote.fetchFilteredEmployees(
-            limit: limit,
-            offset: offset,
-            search: search,
-            designations: designations,
-            departments: departments,
-            statuses: statuses
-        )
-        let domain = res.employees
-                .map { $0.toDomain() }
-                .filter { $0.deletedAt == nil }   // ADD THIS
 
-        return (domain, res.hasNext)
-//        return (res.employees.map { $0.toDomain() }, res.hasNext)
+    func syncCreate(_ employee: Employee) async throws {
+        try await remote.createEmployee(employee)
+
     }
+
+    func syncUpdate(_ employee: Employee) async throws {
+        try await remote.updateEmployee(employee)
+    }
+
+    func syncDelete(_ id: String) async throws {
+        try await remote.deleteEmployee(id)
+    }
+
 }
-
-
-
-

@@ -56,6 +56,7 @@ struct EmployeesResponseDTO: Decodable {
 
 struct MetaDTO: Decodable {
     let hasNextPage: Bool
+    let latestUpdatedSeq: Int
 }
 
 extension EmployeeDTO {
@@ -91,3 +92,28 @@ enum SyncAction: String {
     case delete
 }
 
+struct SyncResponseDTO: Decodable {
+    let data: SyncDataDTO
+    let success: Bool
+}
+struct SyncDataDTO: Decodable {
+    let employees: [EmployeeDTO]
+    let nextCursor: CursorDTO
+    let hasMore: Bool
+}
+struct CursorDTO: Decodable {
+    let seq: Int
+}
+extension SyncResponseDTO {
+    var employees: [EmployeeDTO] {
+        data.employees
+    }
+    
+    var nextSeq: Int {
+        data.nextCursor.seq
+    }
+    
+    var hasMore: Bool {
+        data.hasMore
+    }
+}

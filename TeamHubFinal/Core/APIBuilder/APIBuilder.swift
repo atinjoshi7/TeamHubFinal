@@ -26,7 +26,7 @@ enum APIEndpoint {
         departments: [String],
         statuses: [String]
     )
-
+    case sync(seq: Int)
     private var base: String {
         "https://employee-static-api.onrender.com/api"
     }
@@ -62,6 +62,8 @@ enum APIEndpoint {
             
         case .updateEmployeeDTO(let id, _):
             return URL(string: "\(base)/employees/\(id)")
+        case .sync:
+            return URL(string: "\(base)/sync")
             
         case let .filteredEmployees(limit, offset, search, designations, departments, statuses):
 
@@ -91,7 +93,7 @@ enum APIEndpoint {
                 queryItems.append(.init(name: "status",
                                         value: statuses.joined(separator: ",")))
             }
-
+       
             components?.queryItems = queryItems
             return components?.url
         }
@@ -109,6 +111,8 @@ enum APIEndpoint {
             return "DELETE"
         case .updateEmployeeDTO:
             return "PATCH"
+        case .sync:
+                return "POST"
         default:
             return "GET"
         }
@@ -118,7 +122,7 @@ enum APIEndpoint {
 
     var headers: [String: String] {
         switch self {
-        case .createEmployee, .updateEmployee, .updateEmployeeDTO:
+        case .createEmployee, .updateEmployee, .updateEmployeeDTO, .sync:
             return ["Content-Type": "application/json"]
         default:
             return [:]
@@ -137,39 +141,19 @@ enum APIEndpoint {
             return try? JSONEncoder().encode(employee.toDTO())
         case .updateEmployeeDTO(_, let dto):
             return try? JSONEncoder().encode(dto)
+        case .sync(let seq):
+               let body: [String: Any] = [
+                   "cursor": [
+                       "seq": seq
+                   ]
+               ]
+               return try? JSONSerialization.data(withJSONObject: body)
+            
         default:
             return nil
         }
     }
 }
-//extension Employee {
-//
-//    func toDTO() -> EmployeeDTO {
-//   
-//        EmployeeDTO(
-//            id: id,
-//            name: name,
-//            designation: designation,
-//            department: department,
-//            isActive: isActive,
-//            imgUrl: imgUrl,
-//            email: email,
-//            city: city,
-//            joiningDate: "",
-//            country: country,
-//            deletedAt: deletedAt,
-//            createdAt: createdAt,
-//            version: nil,
-//            mobiles: phones.map {
-//                PhoneDTO(
-//                    id: $0.id,
-//                    type: $0.type,
-//                    number: $0.number
-//                )
-//            }
-//        )
-//    }
-//}
 extension Employee {
 
     func toDTO() -> EmployeeDTO {

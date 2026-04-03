@@ -12,23 +12,6 @@ struct EmployeeRowView: View {
  
     var body: some View {
         HStack(spacing: 12) {
-//            if let raw = employee.imgUrl?.trimmingCharacters(in: .whitespacesAndNewlines),
-//               let url = URL(string: raw) {
-//                KFImage(url)
-//                    .placeholder {
-//                        fallbackAvatar
-//                    }
-//                    .onFailure { error in
-//                        print("❌ Image load failed: \(error)")
-//                    }
-//                    .retry(maxCount: 2, interval: .seconds(1))
-//                    .resizable()
-//                    .scaledToFill()
-//                    .frame(width: 50, height: 50)
-//                    .clipShape(Circle())
-//            } else {
-//                fallbackAvatar
-//            }
             AvatarView(
                    urlString: employee.imgUrl,
                    name: employee.name,
@@ -85,7 +68,7 @@ struct AvatarView: View {
                     fallback
                 }
                 .onFailure { error in
-                    print("❌ Image load failed:", error)
+                   
                 }
                 .retry(maxCount: 2, interval: .seconds(1))
                 .resizable()

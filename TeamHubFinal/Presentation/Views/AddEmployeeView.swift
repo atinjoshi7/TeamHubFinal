@@ -9,8 +9,7 @@ import SwiftUI
 struct AddEmployeeView: View {
 
     @Environment(\.dismiss) private var dismiss
-
-    var onSave: (Employee) -> Void
+  
 
     @State private var name = ""
     @State private var email = ""

@@ -94,8 +94,10 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
         let dbData = local.fetchNonDeleted(limit: limit, offset: 0)
 
         if !dbData.isEmpty {
-            dbOffset = dbData.count
-            return dbData
+           
+            let initial = Array(dbData.prefix(limit))
+            dbOffset = initial.count
+            return initial
         }
 
         return await loadMore()
@@ -232,33 +234,34 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
     }
 
     // MARK: - SYNC
-
     func syncFromServer() async {
-
         let lastSeq = UserDefaults.standard.integer(forKey: "sync_seq")
 
         do {
             let res = try await remote.sync(seq: lastSeq)
-
             let employees = res.data.employees.map { $0.toDomain() }
 
-            for emp in employees {
-
-                if emp.deletedAt != nil {
-                    local.softDelete(emp.id, date: emp.deletedAt)
-                } else {
-                    local.updateFromServer(emp)
-                }
+            if lastSeq == 0 {
+                // 🔥 First launch: DB already populated via paginated API.
+                // Just save the cursor — do NOT apply changes to avoid
+                // re-inserting everything and triggering observer flood.
+                print("⚠️ Bootstrap sync — skipping apply, saving seq only")
+            } else if !employees.isEmpty {
+                // ✅ Incremental sync — batch update in a single CoreData save
+                local.batchUpdateFromServer(employees)
+                print("✅ Sync applied \(employees.count) changes")
+            } else {
+                print("✅ Sync — nothing new (seq: \(lastSeq))")
             }
 
+            // Always advance the cursor
             UserDefaults.standard.set(res.data.nextCursor.seq, forKey: "sync_seq")
-
 
         } catch {
             print("❌ Sync failed:", error)
         }
     }
-
+    
     func fetchPendingSync() -> [Employee] {
         local.fetchPendingSync()
     }

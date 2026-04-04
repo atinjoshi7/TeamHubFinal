@@ -53,28 +53,6 @@ final class SyncManager: SyncManaging {
     }
 
     // Manual trigger
-//    func syncNow() async {
-//        guard network.isConnected else {
-//            print("No internet. Skipping sync")
-//            return
-//        }
-//
-//        guard !isSyncing else {
-//            print("Already syncing")
-//            return
-//        }
-//
-//        isSyncing = true
-//
-//        print("Sync started")
-//
-//        await pushLocalChanges()
-//
-//        isSyncing = false
-//
-//        print("Sync finished")
-//    }
-    
     func syncNow() async {
 
         guard network.isConnected else { return }
@@ -113,10 +91,11 @@ final class SyncManager: SyncManaging {
         guard !isSyncing else { return }
         isSyncing = true
 
-        do { isSyncing = false }
+        defer { isSyncing = false }
 
         // your sync logic
-        startAutoSync()
+//        startAutoSync()
+        await repo.syncFromServer()
     }
 }
 extension SyncManager {

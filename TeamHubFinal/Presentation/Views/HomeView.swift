@@ -128,13 +128,6 @@ struct HomeView: View {
                     }
                 }
             }
-//            .onChange(of: scenePhase) { _, phase in
-//                if phase == .active {
-//                    Task {
-//                        await vm.repo.syncFromServer()
-//                    }
-//                }
-//            }
         }
     }
 }
@@ -144,13 +137,22 @@ extension HomeView {
     @ViewBuilder
     private var contentView: some View {
 
-        if vm.isLoading {
-               ProgressView()
-                   .frame(maxHeight: .infinity)
-           }
-//           else if vm.displayEmployees.isEmpty {
-//               EmptyStateView()
+        
+//        if vm.isLoading {
+//               ProgressView()
+//                   .frame(maxHeight: .infinity)
 //           }
+        if vm.isLoading && vm.employees.isEmpty {
+            List {
+                ForEach(0..<10, id: \.self) { _ in
+                    ShimmerRowView()
+                        .listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets())
+                }
+            }
+            .listStyle(.plain)
+            .allowsHitTesting(false)
+        }
         else {
             if vm.showNewBanner {
                 Button {
@@ -180,7 +182,7 @@ extension HomeView {
 
         List {
 
-            ForEach(vm.displayEmployees) { employee in
+            ForEach(vm.displayEmployees, id: \.id) { employee in
 
                 EmployeeRowView(employee: employee)
 
@@ -210,7 +212,7 @@ extension HomeView {
         .listStyle(.plain)
         .scrollDismissesKeyboard(.immediately)
 
-        // 🔥 CLEAN REFRESH (no syncManager here anymore)
+        //  CLEAN REFRESH (no syncManager here anymore)
         .refreshable {
             await vm.refresh()
         }

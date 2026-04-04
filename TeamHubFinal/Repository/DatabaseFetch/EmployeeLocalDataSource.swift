@@ -53,7 +53,8 @@ protocol EmployeeLocalDataSourceProtocol {
     func updateFromServer(_ employee: Employee)
     func observeEmployees(limit:Int) -> AnyPublisher<[Employee], Never>
     func nonDeletedCount() -> Int
-    func fetchNonDeleted(limit: Int, offset: Int) -> [Employee] 
+    func fetchNonDeleted(limit: Int, offset: Int) -> [Employee]
+    func batchUpdateFromServer(_ employees: [Employee]) 
 }
 final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
 
@@ -81,6 +82,39 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
         return (try? ctx.fetch(req))?.map { $0.toDomain() } ?? []
     }
     
+    
+    func batchUpdateFromServer(_ employees: [Employee]) {
+        let ctx = stack.viewContext
+        
+        for employee in employees {
+            let req: NSFetchRequest<EmployeeEntity> = EmployeeEntity.fetchRequest()
+            req.predicate = NSPredicate(format: "id == %@", employee.id)
+            
+            let entity: EmployeeEntity
+            if let existing = try? ctx.fetch(req).first {
+                if existing.needSync { continue }  // protect local edits
+                entity = existing
+            } else {
+                entity = EmployeeEntity(context: ctx)
+                entity.id = employee.id
+            }
+            
+            entity.name = employee.name
+            entity.designation = employee.designation
+            entity.department = employee.department
+            entity.isActive = employee.isActive
+            entity.imgURL = employee.imgUrl
+            entity.email = employee.email
+            entity.city = employee.city
+            entity.country = employee.country
+            entity.createdAt = employee.createdAt
+            entity.deletedAt = employee.deletedAt
+            entity.updatedAt = Date()
+        }
+        
+        // Single save = single observer notification = no flicker
+        stack.save(context: ctx)
+    }
     
     func search(query: String) -> [Employee] {
 
@@ -113,7 +147,7 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
         request.sortDescriptors = [
             NSSortDescriptor(key: "createdAt", ascending: false)
         ]
-//        request.fetchLimit = limit
+        request.fetchLimit = limit
 
         return NotificationCenter.default.publisher(
             for: .NSManagedObjectContextDidSave,

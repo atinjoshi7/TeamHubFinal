@@ -14,7 +14,7 @@ import SwiftUI
 import Combine
 @MainActor
 final class HomeViewModel: ObservableObject {
-
+    private var currentLimit = 20
     @Published var allDesignations: [String] = []
     @Published var allDepartments: [String] = []
     @Published var allStatuses: [String] = []
@@ -60,20 +60,18 @@ final class HomeViewModel: ObservableObject {
         !selectedStatuses.isEmpty
     }
 
-    private func observeEmployees() {
 
-        repo.observeEmployees(limit: employees.count == 0 ? 20 : employees.count)
+    private func observeEmployees() {
+        repo.observeEmployees(limit: currentLimit)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] employees in
                 guard let self = self else { return }
-
-                if !self.isPaginating {
-                    self.employees = employees
-                }
+                // Only update from observer when idle — not during load/paginate/refresh
+                guard !self.isPaginating, !self.isLoading, !self.isRefreshingTaskRunning else { return }
+                self.employees = employees
             }
             .store(in: &cancellables)
     }
-    
     
     func filters() async {
 
@@ -88,32 +86,37 @@ final class HomeViewModel: ObservableObject {
     }
     
     // MARK: - LOAD
+
     func loadInitial() async {
-        if hasLoadedInitially { return }   // 🔥 KEY FIX
-
-            hasLoadedInitially = true
-
-            isLoading = true
-
+        if hasLoadedInitially { return }
+        hasLoadedInitially = true
+        isLoading = true                         // guard is now active
         let data = await repo.loadUntilFilled(targetCount: 20)
-
-        employees = data
-        isLoading = false
+        currentLimit = 20
+        employees = data                         // single authoritative write
+        isLoading = false                        // guard released; observer takes over
     }
     
+    
     func loadMore() async {
-
         guard !isPaginating else { return }
-
         isPaginating = true
         isPaginatingUI = true
 
         let data = await repo.loadMore()
-
+        currentLimit += 20
         employees = data.filter { $0.deletedAt == nil }
 
+        // Re-subscribe observer with new limit so sync arrivals show correctly
+        resubscribeObserver()
+
         isPaginating = false
-        isPaginatingUI = false   // ✅ FIXED
+        isPaginatingUI = false
+    }
+
+    private func resubscribeObserver() {
+        cancellables.removeAll()
+        observeEmployees()
     }
     
     func refresh() async {
@@ -124,7 +127,7 @@ final class HomeViewModel: ObservableObject {
         syncManager.stopAutoSync()
         
         let data = await repo.refresh()
-
+        currentLimit = 20
         employees = data
         syncState.isRefreshing = false
         syncManager.startAutoSync()

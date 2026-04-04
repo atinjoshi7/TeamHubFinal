@@ -19,13 +19,14 @@ final class SyncManager: SyncManaging {
 
     private let repo: EmployeeRepositoryProtocol
     private var network: NetworkMonitoring
-
+    private let syncState: SyncState
     private var isSyncing = false
     private var syncTimer: Timer?
     init(repo: EmployeeRepositoryProtocol,
-         network: NetworkMonitoring) {
+         network: NetworkMonitoring,syncState:SyncState) {
         self.repo = repo
         self.network = network
+        self.syncState = syncState
     }
 
     // Start observing network
@@ -52,35 +53,53 @@ final class SyncManager: SyncManaging {
     }
 
     // Manual trigger
+//    func syncNow() async {
+//        guard network.isConnected else {
+//            print("No internet. Skipping sync")
+//            return
+//        }
+//
+//        guard !isSyncing else {
+//            print("Already syncing")
+//            return
+//        }
+//
+//        isSyncing = true
+//
+//        print("Sync started")
+//
+//        await pushLocalChanges()
+//
+//        isSyncing = false
+//
+//        print("Sync finished")
+//    }
+    
     func syncNow() async {
-        guard network.isConnected else {
-            print("No internet. Skipping sync")
-            return
-        }
 
-        guard !isSyncing else {
-            print("Already syncing")
-            return
-        }
+        guard network.isConnected else { return }
+        guard !isSyncing else { return }
 
         isSyncing = true
 
-        print("Sync started")
-
+        // 1. Push local
         await pushLocalChanges()
 
-        isSyncing = false
+        // 2. Pull from server
+        await repo.syncFromServer()
 
-        print("Sync finished")
+        isSyncing = false
     }
+    
     
     func startAutoSync() {
         
         stopAutoSync() // prevent duplicates
 
         syncTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+            
             Task {
-                await self?.repo.syncFromServer()
+                await self?.syncNow()
             }
         }
     }
@@ -141,3 +160,4 @@ extension SyncManager {
         }
     }
 }
+ 

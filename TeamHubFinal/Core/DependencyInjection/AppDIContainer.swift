@@ -6,9 +6,14 @@
 //
 
 import Foundation
+import Combine
+import SwiftUI
+final class SyncState: ObservableObject {
+    @Published var isRefreshing: Bool = false
+}
 
 final class AppDIContainer{
-    
+    let syncState = SyncState()
     private lazy var api: APIClient = URLSessionAPIClient()
     
     private lazy var core: CoreDataStacking = CoreDataStack.shared
@@ -30,7 +35,8 @@ final class AppDIContainer{
         HomeView(
             vm: HomeViewModel(
                 repo: repo,
-                
+                syncState: syncState,
+                syncManager: syncManager
             )
         )
     }
@@ -38,7 +44,8 @@ final class AppDIContainer{
     
     lazy var syncManager: SyncManaging = SyncManager(
         repo: repo,
-        network: network
+        network: network,
+        syncState: syncState  
     )
     
 }

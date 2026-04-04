@@ -144,14 +144,32 @@ extension HomeView {
     @ViewBuilder
     private var contentView: some View {
 
-        if vm.isLoading && vm.displayEmployees.isEmpty {
-            ProgressView()
-                .frame(maxHeight: .infinity)
-        }
-        else if vm.displayEmployees.isEmpty {
-            EmptyStateView()
-        }
+        if vm.isLoading {
+               ProgressView()
+                   .frame(maxHeight: .infinity)
+           }
+//           else if vm.displayEmployees.isEmpty {
+//               EmptyStateView()
+//           }
         else {
+            if vm.showNewBanner {
+                Button {
+                    vm.showNewBanner = false
+
+                    // scroll to top OR reload
+                    Task {
+                        await vm.loadInitial()
+                    }
+
+                } label: {
+                    Text("New employees available")
+                        .font(.subheadline)
+                        .foregroundColor(.white)
+                        .padding()
+                        .frame(maxWidth: .infinity)
+                        .background(Color.blue)
+                }
+            }
             listView
         }
     }

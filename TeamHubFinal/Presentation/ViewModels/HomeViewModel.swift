@@ -18,9 +18,13 @@ final class HomeViewModel: ObservableObject {
     @Published var allDesignations: [String] = []
     @Published var allDepartments: [String] = []
     @Published var allStatuses: [String] = []
-    
+    @Published var showNewBanner = false
     // MARK: - UI STATE
-
+    private var hasLoadedInitially = false
+    private var isRefreshingTaskRunning = false
+    @Published var isRefreshing = false
+    private let  syncState: SyncState
+    private let syncManager: SyncManaging
     @Published private(set) var employees: [Employee] = []
     @Published private(set) var searchResults: [Employee] = []
 
@@ -34,10 +38,13 @@ final class HomeViewModel: ObservableObject {
     private var isPaginating = false
     
     let repo: EmployeeRepositoryProtocol
-
-    init(repo: EmployeeRepositoryProtocol) {
+    private var cancellables = Set<AnyCancellable>()
+    init(repo: EmployeeRepositoryProtocol,syncState: SyncState,  syncManager: SyncManaging) {
         self.repo = repo
-        observeSync()
+        
+        self.syncState = syncState
+        self.syncManager = syncManager
+        observeEmployees()
     }
 
     // MARK: - COMPUTED
@@ -53,6 +60,20 @@ final class HomeViewModel: ObservableObject {
         !selectedStatuses.isEmpty
     }
 
+    private func observeEmployees() {
+
+        repo.observeEmployees(limit: employees.count == 0 ? 20 : employees.count)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] employees in
+                guard let self = self else { return }
+
+                if !self.isPaginating {
+                    self.employees = employees
+                }
+            }
+            .store(in: &cancellables)
+    }
+    
     
     func filters() async {
 
@@ -67,43 +88,48 @@ final class HomeViewModel: ObservableObject {
     }
     
     // MARK: - LOAD
-
     func loadInitial() async {
+        if hasLoadedInitially { return }   // 🔥 KEY FIX
 
-        isLoading = true
+            hasLoadedInitially = true
 
-        let data = await repo.loadInitial()
+            isLoading = true
 
-        // 🔥 ALWAYS FILTER DELETED
-        employees = data.filter { $0.deletedAt == nil }
+        let data = await repo.loadUntilFilled(targetCount: 20)
 
+        employees = data
         isLoading = false
     }
-
+    
     func loadMore() async {
 
         guard !isPaginating else { return }
 
-          isPaginating = true
+        isPaginating = true
         isPaginatingUI = true
-        // ❌ DO NOT SHOW LOADER FOR PAGINATION
+
         let data = await repo.loadMore()
 
         employees = data.filter { $0.deletedAt == nil }
-        
+
         isPaginating = false
-        isPaginatingUI = true
+        isPaginatingUI = false   // ✅ FIXED
     }
-
+    
     func refresh() async {
-
+        guard !isRefreshingTaskRunning else { return }
+        isRefreshingTaskRunning = true
         isLoading = true
-
+        syncState.isRefreshing = true
+        syncManager.stopAutoSync()
+        
         let data = await repo.refresh()
 
-        employees = data.filter{ $0.deletedAt == nil}
-
+        employees = data
+        syncState.isRefreshing = false
+        syncManager.startAutoSync()
         isLoading = false
+        isRefreshingTaskRunning = false
     }
 
     // MARK: - SEARCH (UNIFIED)
@@ -155,31 +181,5 @@ final class HomeViewModel: ObservableObject {
 
         employees.remove(atOffsets: offsets)
     }
-
-    // MARK: - SYNC OBSERVER (CRITICAL FIX)
-
-    private func observeSync() {
-
-        NotificationCenter.default.addObserver(
-            forName: .didSyncData,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-
-            guard let self = self else { return }
-
-            Task { @MainActor in
-                print("🔄 Sync → refreshing UI")
-
-                // 🔥 DO NOT CALL loadInitial (it resets pagination)
-                let updated = await self.repo.loadMore()
-//                let updated = await self.repo.refresh()
-
-                self.employees = updated.filter { $0.deletedAt == nil }
-            }
-        }
-    }
 }
-extension Notification.Name {
-    static let didSyncData = Notification.Name("didSyncData")
-}
+

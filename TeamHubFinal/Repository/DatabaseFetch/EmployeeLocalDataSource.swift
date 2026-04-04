@@ -51,8 +51,9 @@ protocol EmployeeLocalDataSourceProtocol {
     func get(by id: String) -> Employee?
     
     func updateFromServer(_ employee: Employee)
-    func observeEmployees(limit: Int) -> AnyPublisher<[Employee], Never>
-    
+    func observeEmployees(limit:Int) -> AnyPublisher<[Employee], Never>
+    func nonDeletedCount() -> Int
+    func fetchNonDeleted(limit: Int, offset: Int) -> [Employee] 
 }
 final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
 
@@ -63,6 +64,23 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
     init(stack: CoreDataStacking) {
         self.stack = stack
     }
+    
+    func fetchNonDeleted(limit: Int, offset: Int) -> [Employee] {
+        let ctx = stack.viewContext
+
+        let req: NSFetchRequest<EmployeeEntity> = EmployeeEntity.fetchRequest()
+        req.predicate = NSPredicate(format: "deletedAt == nil")
+
+        req.fetchLimit = limit
+        req.fetchOffset = offset
+
+        req.sortDescriptors = [
+            NSSortDescriptor(key: "createdAt", ascending: false)
+        ]
+
+        return (try? ctx.fetch(req))?.map { $0.toDomain() } ?? []
+    }
+    
     
     func search(query: String) -> [Employee] {
 
@@ -79,8 +97,14 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
         return (try? stack.viewContext.fetch(req))?.map { $0.toDomain() } ?? []
     }
 
+    func nonDeletedCount() -> Int {
+        let req: NSFetchRequest<EmployeeEntity> = EmployeeEntity.fetchRequest()
+        req.predicate = NSPredicate(format: "deletedAt == nil")
+
+        return (try? stack.viewContext.count(for: req)) ?? 0
+    }
     
-    func observeEmployees(limit: Int) -> AnyPublisher<[Employee], Never> {
+    func observeEmployees(limit:Int) -> AnyPublisher<[Employee], Never> {
 
         let context = stack.viewContext
 
@@ -89,7 +113,7 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
         request.sortDescriptors = [
             NSSortDescriptor(key: "createdAt", ascending: false)
         ]
-        request.fetchLimit = limit
+//        request.fetchLimit = limit
 
         return NotificationCenter.default.publisher(
             for: .NSManagedObjectContextDidSave,
@@ -184,12 +208,23 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
         let req: NSFetchRequest<EmployeeEntity> = EmployeeEntity.fetchRequest()
         req.predicate = NSPredicate(format: "id == %@", employee.id)
 
-        guard let entity = try? ctx.fetch(req).first else { return }
+        let entity: EmployeeEntity
 
-        // ❗ DO NOT TOUCH needSync if local changes exist
-        if entity.needSync == true {
-            print("⚠️ Skipping server update due to local changes")
-            return
+        if let existing = try? ctx.fetch(req).first {
+            entity = existing
+
+            // ⚠️ Protect local edits
+            if entity.needSync == true {
+                print("⚠️ Skipping server update due to local changes")
+                return
+            }
+
+            print("✏️ Updating from server:", employee.id)
+
+        } else {
+            entity = EmployeeEntity(context: ctx)
+            entity.id = employee.id
+            print("🆕 Inserting from server:", employee.id)
         }
 
         entity.name = employee.name
@@ -200,13 +235,12 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
         entity.email = employee.email
         entity.city = employee.city
         entity.country = employee.country
+        entity.createdAt = employee.createdAt   // 🔥 IMPORTANT
         entity.deletedAt = employee.deletedAt
         entity.updatedAt = Date()
 
         stack.save(context: ctx)
     }
-    
-    
     
     // Empty the DB
     
@@ -287,7 +321,7 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
         let req: NSFetchRequest<EmployeeEntity> = EmployeeEntity.fetchRequest()
 
         // ❌ REMOVE FILTER
-        // req.predicate = NSPredicate(format: "deletedAt == nil")
+         req.predicate = NSPredicate(format: "deletedAt == nil")
 
         req.fetchLimit = limit
         req.fetchOffset = offset
@@ -295,6 +329,7 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
         req.sortDescriptors = [
             NSSortDescriptor(key: "createdAt", ascending: false)
         ]
+        
         
         req.returnsObjectsAsFaults = false
 

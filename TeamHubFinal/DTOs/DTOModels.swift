@@ -27,6 +27,23 @@ struct EmployeeDTO: Codable {
     let createdAt: String?
     let version: Int?
     let mobiles: [PhoneDTO]?
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case designation
+        case department
+        case isActive = "is_active"
+        case imgUrl = "img_url"
+        case email
+        case city
+        case joiningDate = "joining_date"
+        case country
+        case deletedAt = "deleted_at"
+        case createdAt = "created_at"
+        case version
+        case mobiles
+    }
 }
 struct EditablePhone: Identifiable {
     let id: String
@@ -57,6 +74,10 @@ struct EmployeesResponseDTO: Decodable {
 struct MetaDTO: Decodable {
     let hasNextPage: Bool
     let latestUpdatedSeq: Int
+    enum CodingKeys: String,CodingKey {
+        case hasNextPage = "has_next_page"
+        case latestUpdatedSeq = "latest_updated_seq"
+    }
 }
 
 extension EmployeeDTO {
@@ -100,6 +121,11 @@ struct SyncDataDTO: Decodable {
     let employees: [EmployeeDTO]
     let nextCursor: CursorDTO
     let hasMore: Bool
+    enum CodingKeys: String, CodingKey {
+        case employees
+        case nextCursor = "next_cursor"
+        case hasMore = "has_more"
+    }
 }
 struct CursorDTO: Decodable {
     let seq: Int

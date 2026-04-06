@@ -12,7 +12,7 @@ struct AddEmployeeView: View {
     let departments:[String]
     let designations:[String]
     var onSave: (Employee) -> Void
-
+    @State private var joiningDate: Date = Date()
     @State private var name = ""
     @State private var email = ""
     @State private var city = ""
@@ -24,11 +24,6 @@ struct AddEmployeeView: View {
     @State private var selectedDepartment: String = ""
     @State private var selectedDesignation: String = ""
     private let phoneTypes = ["home", "office", "other"]
-    
-//    init(vm: FilterViewModel, onSave: @escaping (Employee) -> Void) {
-//        _vm = StateObject(wrappedValue: vm)
-//        self.onSave = onSave
-//    }
     
 
     var body: some View {
@@ -60,7 +55,14 @@ struct AddEmployeeView: View {
 
                     Toggle("Active", isOn: $isActive)
                 }
-
+                Section("Joining Date") {
+                    DatePicker(
+                        "Select Joining Date",
+                        selection: $joiningDate,
+                        in: ...Date(),   // ✅ only past & today
+                        displayedComponents: .date
+                    )
+                }
                 Section("Phones") {
 
                     ForEach($phones) { $phone in
@@ -125,7 +127,7 @@ struct AddEmployeeView: View {
             return
         }
         let employee = Employee(
-            id: UUID().uuidString,
+            id: UUID().uuidString.lowercased(),
             name: name,
             designation: selectedDesignation, // or from picker later
             department: selectedDepartment,
@@ -133,10 +135,10 @@ struct AddEmployeeView: View {
             imgUrl: nil,
             email: email,
             city: city,
-            joiningDate: nil,
+            joiningDate: DateUtils.toYYYYMMDD(joiningDate),
             country: country,
             phones: phones.map { $0.toDomain() },
-            createdAt: nil,
+            createdAt: Date(),
             deletedAt: nil,
            
         )

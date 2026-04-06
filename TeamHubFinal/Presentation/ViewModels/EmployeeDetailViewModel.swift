@@ -23,7 +23,7 @@ final class EmployeeDetailViewModel: ObservableObject {
     var designation: String { employee.designation }
     var department: String { employee.department }
     var isActiveText: String { employee.isActive ? "Active" : "Inactive" }
-
+    var joiningDate: String { (employee.joiningDate != nil) ? "" : ""} 
     var phones: [Phone] {
         employee.phones
     }

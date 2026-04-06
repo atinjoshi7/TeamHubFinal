@@ -8,7 +8,7 @@ import SwiftUI
 
 struct HomeView: View {
 
-    @Environment(\.scenePhase) private var scenePhase
+    
     @EnvironmentObject private var network: NetworkMonitor
     @EnvironmentObject private var theme: ThemeManager
 
@@ -158,10 +158,10 @@ extension HomeView {
                 Button {
                     vm.showNewBanner = false
 
-                    // scroll to top OR reload
-                    Task {
-                        await vm.loadInitial()
-                    }
+//                    // scroll to top OR reload
+//                    Task {
+//                        await vm.loadInitial()
+//                    }
 
                 } label: {
                     Text("New employees available")
@@ -187,6 +187,11 @@ extension HomeView {
                 EmployeeRowView(employee: employee)
 
                     .onAppear {
+//                         if vm.shouldLoadMore(currentItem: employee){
+//                            Task{
+//                                await vm.loadMore()
+//                            }
+//                        }
                         // SIMPLE PAGINATION TRIGGER
                         if employee.id == vm.displayEmployees.last?.id {
                             Task { await vm.loadMore() }
@@ -201,12 +206,13 @@ extension HomeView {
             }
             .onDelete(perform: vm.deleteEmployee)
 
-            if vm.isLoading {
+            if vm.isPaginatingUI {
                 HStack {
                     Spacer()
                     ProgressView()
                     Spacer()
                 }
+                .id(UUID())
             }
         }
         .listStyle(.plain)

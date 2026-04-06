@@ -40,9 +40,12 @@ struct EmployeeDetailView: View {
                 // Designation
                 row(title: "Designation", value: vm.designation)
 
+                row(title: "joinig date", value: vm.joiningDate)
+                
                 // Status
                 row(title: "Status", value: vm.isActiveText)
 
+                
                 //Phones (0–3)
                 if vm.phones.isEmpty {
                     row(title: "Phones", value: "No phone numbers")
@@ -65,7 +68,8 @@ struct EmployeeDetailView: View {
             }
         }
         .sheet(isPresented: $showEdit) {
-            EditEmployeeView(employee: vm.employee) { updated in
+            EditEmployeeView(employee: vm.employee,
+            ) { updated in
                 onUpdate(updated)
                 vmRefresh(updated)
             }
@@ -103,13 +107,18 @@ struct EditEmployeeView: View {
     var onSave: (Employee) -> Void
     
     @State private var phones: [EditablePhone]
+    
+    
+    
     // MARK: - Basic Fields
     @State private var name: String
     @State private var email: String
     @State private var city: String
     @State private var country: String
     @State private var isActive: Bool
-
+    @State private var joiningDate: String
+    @State private var department: String
+    @State private var designation: String
     // MARK: - Phones (Editable)
 
     private let phoneTypes = ["home", "office", "other"]
@@ -126,6 +135,9 @@ struct EditEmployeeView: View {
         _phones = State(
             initialValue: employee.phones.map { EditablePhone(from: $0) }
         )
+        _joiningDate = State(initialValue: employee.joiningDate ?? "")
+        _department = State(initialValue: employee.department)
+        _designation = State(initialValue: employee.designation)
     }
 
     var body: some View {
@@ -138,7 +150,23 @@ struct EditEmployeeView: View {
                     labeledField("Email", text: $email)
                     labeledField("City", text: $city)
                     labeledField("Country", text: $country)
-
+                    labeledField("Department", text:$department)
+                    labeledField("Designation", text: $designation)
+//                    Section {
+                        DatePicker(
+                            "Joining Date",
+                            selection: Binding(
+                                get: {
+                                    DateUtils.parse(joiningDate) ?? Date()
+                                },
+                                set: { newDate in
+                                    // store temp if you want editable
+                                }
+                            ),
+                            in: ...Date(),
+                            displayedComponents: .date
+                        )
+//                    }
                     Toggle("Active", isOn: $isActive)
                 }
 
@@ -220,13 +248,13 @@ struct EditEmployeeView: View {
         let updated = Employee(
             id: employee.id,
             name: name,
-            designation: employee.designation,
-            department: employee.department,
+            designation: designation,
+            department: department,
             isActive: isActive,
             imgUrl: employee.imgUrl,
             email: email,
             city: city,
-            joiningDate: nil,
+            joiningDate: joiningDate,
             country: country,
             phones: phones.map{
                 $0.toDomain()

@@ -51,7 +51,7 @@ protocol EmployeeLocalDataSourceProtocol {
     func get(by id: String) -> Employee?
     
     func updateFromServer(_ employee: Employee)
-    func observeEmployees(limit:Int) -> AnyPublisher<[Employee], Never>
+//    func observeEmployees(limit:Int) -> AnyPublisher<[Employee], Never>
     func nonDeletedCount() -> Int
     func fetchNonDeleted(limit: Int, offset: Int) -> [Employee]
     func batchUpdateFromServer(_ employees: [Employee]) 
@@ -138,35 +138,37 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
         return (try? stack.viewContext.count(for: req)) ?? 0
     }
     
-    func observeEmployees(limit:Int) -> AnyPublisher<[Employee], Never> {
-
-        let context = stack.viewContext
-
-        let request: NSFetchRequest<EmployeeEntity> = EmployeeEntity.fetchRequest()
-        request.predicate = NSPredicate(format: "deletedAt == nil")
-        request.sortDescriptors = [
-            NSSortDescriptor(key: "createdAt", ascending: false)
-        ]
-        request.fetchLimit = limit
-
-        return NotificationCenter.default.publisher(
-            for: .NSManagedObjectContextDidSave,
-            object: context
-        )
-        .map { _ in
-            (try? context.fetch(request))?.map { $0.toDomain() } ?? []
-        }
-        .prepend(
-            (try? context.fetch(request))?.map { $0.toDomain() } ?? []
-        )
-        .eraseToAnyPublisher()
-    }
+//    func observeEmployees(limit:Int) -> AnyPublisher<[Employee], Never> {
+//
+//        let context = stack.viewContext
+//
+//        let request: NSFetchRequest<EmployeeEntity> = EmployeeEntity.fetchRequest()
+//        request.predicate = NSPredicate(format: "deletedAt == nil")
+//        request.sortDescriptors = [
+//            NSSortDescriptor(key: "createdAt", ascending: false)
+//        ]
+//        request.fetchLimit = limit
+//
+//        return NotificationCenter.default.publisher(
+//            for: .NSManagedObjectContextDidSave,
+//            object: context
+//        )
+//        .map { _ in
+//            (try? context.fetch(request))?.map { $0.toDomain() } ?? []
+//        }
+//        .prepend(
+//            (try? context.fetch(request))?.map { $0.toDomain() } ?? []
+//        )
+//        .eraseToAnyPublisher()
+//    }
     
     
     
     // MARK: - SAVE (Batch Insert + Protect Local Edits)
     func save(_ employees: [Employee]) {
 
+        
+        
         let ctx = stack.viewContext
 
         employees.forEach { emp in
@@ -178,7 +180,7 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
 
             let entity: EmployeeEntity
 
-            if let existing = existing {
+            if let existing {
                 // 🔥 UPDATE
                 entity = existing
                 print("✏️ Updating employee: \(emp.id)")
@@ -189,7 +191,7 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
                 print("🆕 Creating employee: \(emp.id)")
             }
             
-
+            
             entity.name = emp.name
             entity.designation = emp.designation
             entity.department = emp.department
@@ -530,7 +532,7 @@ extension EmployeeEntity {
             imgUrl: imgURL,
             email: email ?? "",
             city: city ?? "",
-            joiningDate: joiningDate ?? "",
+            joiningDate: joiningDate,
             country: country ?? "",
             phones: sortedPhones.map {
                 Phone(

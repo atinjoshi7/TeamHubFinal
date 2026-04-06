@@ -5,10 +5,6 @@
 //  Created by Atin Joshi on 24/03/26.
 //
 
-
-
-
-
 import Foundation
 import SwiftUI
 import Combine
@@ -36,6 +32,8 @@ final class HomeViewModel: ObservableObject {
     @Published var isLoading = false
 
     private var isPaginating = false
+    private var observerId: UUID?
+    private var reloadTask: Task<Void,Never>?
     
     let repo: EmployeeRepositoryProtocol
     private var cancellables = Set<AnyCancellable>()
@@ -44,7 +42,18 @@ final class HomeViewModel: ObservableObject {
         
         self.syncState = syncState
         self.syncManager = syncManager
-        observeEmployees()
+//        observeEmployees()
+        
+        observerId = SyncNotifier.shared.addObserver {
+            [weak self] in
+            self?.reloadTask?.cancel()
+            self?.reloadTask = Task{
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                print("Gonna initial load-----")
+                self?.hasLoadedInitially = false
+               await self?.loadInitial()
+            }
+        }
     }
 
     // MARK: - COMPUTED
@@ -61,17 +70,17 @@ final class HomeViewModel: ObservableObject {
     }
 
 
-    private func observeEmployees() {
-        repo.observeEmployees(limit: currentLimit)
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] employees in
-                guard let self = self else { return }
-                // Only update from observer when idle — not during load/paginate/refresh
-                guard !self.isPaginating, !self.isLoading, !self.isRefreshingTaskRunning else { return }
-                self.employees = employees
-            }
-            .store(in: &cancellables)
-    }
+//    private func observeEmployees() {
+//        repo.observeEmployees(limit: currentLimit)
+//            .receive(on: DispatchQueue.main)
+//            .sink { [weak self] employees in
+//                guard let self = self else { return }
+//                // Only update from observer when idle — not during load/paginate/refresh
+//                guard !self.isPaginating, !self.isLoading, !self.isRefreshingTaskRunning else { return }
+//                self.employees = employees
+//            }
+//            .store(in: &cancellables)
+//    }
     
     func filters() async {
 
@@ -91,12 +100,15 @@ final class HomeViewModel: ObservableObject {
         if hasLoadedInitially { return }
         hasLoadedInitially = true
         isLoading = true                         // guard is now active
-        let data = await repo.loadUntilFilled(targetCount: 20)
+        let data = await repo.loadUntilFilled(targetCount: 10)
         currentLimit = 20
         employees = data                         // single authoritative write
         isLoading = false                        // guard released; observer takes over
     }
-    
+//    func shouldLoadMore(currentItem: Employee) -> Bool {
+//        guard let last = displayEmployees.last else { return false }
+//        return currentItem.id == last.id
+//    }
     
     func loadMore() async {
         guard !isPaginating else { return }
@@ -104,20 +116,19 @@ final class HomeViewModel: ObservableObject {
         isPaginatingUI = true
 
         let data = await repo.loadMore()
-        currentLimit += 20
-        employees = data.filter { $0.deletedAt == nil }
-
-        // Re-subscribe observer with new limit so sync arrivals show correctly
-        resubscribeObserver()
+        
+        if !data.isEmpty {
+            employees.append(contentsOf: data)
+        }
 
         isPaginating = false
         isPaginatingUI = false
     }
 
-    private func resubscribeObserver() {
-        cancellables.removeAll()
-        observeEmployees()
-    }
+//    private func resubscribeObserver() {
+//        cancellables.removeAll()
+////        observeEmployees()
+//    }
     
     func refresh() async {
         guard !isRefreshingTaskRunning else { return }
@@ -185,4 +196,3 @@ final class HomeViewModel: ObservableObject {
         employees.remove(atOffsets: offsets)
     }
 }
-

@@ -169,14 +169,14 @@ extension Employee {
             imgUrl: imgUrl,
             email: email,
             city: city,
-            joiningDate: "",
+            joiningDate: joiningDate,
             country: country,
 
-            // ✅ ONLY send when deleting
+            // ONLY send when deleting
             deletedAt: deletedAt != nil ? formatter.string(from: deletedAt!) : nil,
 
-            // ❌ NEVER send createdAt
-            createdAt: nil,
+            //  NEVER send createdAt
+            createdAt: createdAt != nil ? formatter.string(from: createdAt!) : nil,
 
             version: nil,
             mobiles: phones.map {

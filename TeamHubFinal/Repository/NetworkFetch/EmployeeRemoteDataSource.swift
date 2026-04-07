@@ -10,7 +10,7 @@ protocol EmployeeRemoteDataSourceProtocol {
     func fetch(limit: Int, offset: Int) async throws -> EmployeesResponseDTO
     func search(limit: Int, offset: Int, query: String) async throws -> [EmployeeDTO]
     func fetchFilters() async throws -> FiltersResponseDTO
-    func fetchFilteredEmployees(
+    func fetchSearchNFilteredEmployees(
         limit: Int,
         offset: Int,
         search:String?,
@@ -49,7 +49,7 @@ final class EmployeeRemoteDataSource: EmployeeRemoteDataSourceProtocol {
         try await api.request(.filters)
     }
     
-    func fetchFilteredEmployees(
+    func fetchSearchNFilteredEmployees(
         limit: Int,
         offset: Int,
         search: String?,

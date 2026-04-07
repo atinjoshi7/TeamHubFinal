@@ -8,6 +8,7 @@
 import Foundation
 import SwiftUI
 import Combine
+
 @MainActor
 final class HomeViewModel: ObservableObject {
     private var currentLimit = 20
@@ -15,6 +16,11 @@ final class HomeViewModel: ObservableObject {
     @Published var allDepartments: [String] = []
     @Published var allStatuses: [String] = []
     @Published var showNewBanner = false
+
+    private var searchOffset = 0
+    private let limit = 10
+    private var lastSearchQuery: String?
+    
     // MARK: - UI STATE
     private var hasLoadedInitially = false
     private var isRefreshingTaskRunning = false
@@ -25,15 +31,25 @@ final class HomeViewModel: ObservableObject {
     @Published private(set) var searchResults: [Employee] = []
 
     @Published var searchQuery = ""
+    
     @Published var selectedDesignations: Set<String> = []
     @Published var selectedDepartments: Set<String> = []
     @Published var selectedStatuses: Set<String> = []
     @Published var isPaginatingUI = false
     @Published var isLoading = false
-
+//    private var lastSearchQuery: String?
+    
     private var isPaginating = false
     private var observerId: UUID?
     private var reloadTask: Task<Void,Never>?
+    
+    var selectedFilters: SelectedFilters {
+        SelectedFilters(
+            designations: selectedDesignations,
+            departments: selectedDepartments,
+            statuses: selectedStatuses
+        )
+    }
     
     let repo: EmployeeRepositoryProtocol
     private var cancellables = Set<AnyCancellable>()
@@ -42,7 +58,7 @@ final class HomeViewModel: ObservableObject {
         
         self.syncState = syncState
         self.syncManager = syncManager
-//        observeEmployees()
+
         
         observerId = SyncNotifier.shared.addObserver {
             [weak self] in
@@ -52,6 +68,7 @@ final class HomeViewModel: ObservableObject {
                 print("Gonna initial load-----")
                 self?.hasLoadedInitially = false
                await self?.loadInitial()
+                
             }
         }
     }
@@ -62,25 +79,12 @@ final class HomeViewModel: ObservableObject {
         isSearchingOrFiltering ? searchResults : employees
     }
 
-    private var isSearchingOrFiltering: Bool {
+     var isSearchingOrFiltering: Bool {
         !searchQuery.isEmpty ||
         !selectedDesignations.isEmpty ||
         !selectedDepartments.isEmpty ||
         !selectedStatuses.isEmpty
     }
-
-
-//    private func observeEmployees() {
-//        repo.observeEmployees(limit: currentLimit)
-//            .receive(on: DispatchQueue.main)
-//            .sink { [weak self] employees in
-//                guard let self = self else { return }
-//                // Only update from observer when idle — not during load/paginate/refresh
-//                guard !self.isPaginating, !self.isLoading, !self.isRefreshingTaskRunning else { return }
-//                self.employees = employees
-//            }
-//            .store(in: &cancellables)
-//    }
     
     func filters() async {
 
@@ -105,11 +109,7 @@ final class HomeViewModel: ObservableObject {
         employees = data                         // single authoritative write
         isLoading = false                        // guard released; observer takes over
     }
-//    func shouldLoadMore(currentItem: Employee) -> Bool {
-//        guard let last = displayEmployees.last else { return false }
-//        return currentItem.id == last.id
-//    }
-    
+
     func loadMore() async {
         guard !isPaginating else { return }
         isPaginating = true
@@ -124,11 +124,6 @@ final class HomeViewModel: ObservableObject {
         isPaginating = false
         isPaginatingUI = false
     }
-
-//    private func resubscribeObserver() {
-//        cancellables.removeAll()
-////        observeEmployees()
-//    }
     
     func refresh() async {
         guard !isRefreshingTaskRunning else { return }
@@ -149,15 +144,9 @@ final class HomeViewModel: ObservableObject {
     // MARK: - SEARCH (UNIFIED)
 
     func performSearch() async {
-
-        // 🔥 RESET IF EMPTY
-        if !isSearchingOrFiltering {
-            searchResults = []
-            employees = await repo.loadInitial()
-            return
-        }
-
-        let result = await repo.search(
+        
+        
+        let result = await repo.searchNFilter(
             query: searchQuery,
             designations: Array(selectedDesignations),
             departments: Array(selectedDepartments),

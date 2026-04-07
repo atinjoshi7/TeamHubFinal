@@ -17,8 +17,7 @@ final class FilterViewModel: ObservableObject {
         departments: [],
         statuses: []
     )
-    @Published var AddDepartments: Set<String> = []
-    @Published var AddDesignations: Set<String> = []
+    
     @Published var selectedDesignations: Set<String> = []
     @Published var selectedDepartments: Set<String> = []
     @Published var selectedStatuses: Set<String> = []
@@ -28,29 +27,22 @@ final class FilterViewModel: ObservableObject {
 
     init(repo: EmployeeRepositoryProtocol,
          network: NetworkMonitoring,
-         initialFilters: Filters?) {
+    selected: SelectedFilters) {
         
         self.repo = repo
         self.network = network
-        self.filters = initialFilters ?? Filters(
-            designations: [],
-            departments: [],
-            statuses: []
-        )
+        self.selectedDepartments = selected.departments
+        self.selectedDesignations = selected.designations
+        self.selectedStatuses = selected.statuses
     }
     func loadFilters() async {
         if network.isConnected {
-            filters = (try? await repo.fetchFilters()) ?? filters
+            filters = (await repo.fetchFilters()) ?? filters
         } else {
             filters = repo.fetchFiltersFromDB()
         }
     }
     
-    func fetchFilters() async{
-        filters = (try? await repo.fetchFilters()) ?? filters
-        AddDepartments = Set(filters.departments)
-        AddDesignations = Set(filters.designations)
-    }
     
     func reset() {
         selectedDesignations.removeAll()

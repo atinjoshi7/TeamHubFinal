@@ -126,6 +126,7 @@ struct AddEmployeeView: View {
             print("No department/designation is selected")
             return
         }
+        
         let employee = Employee(
             id: UUID().uuidString.lowercased(),
             name: name,

@@ -76,9 +76,8 @@ struct HomeView: View {
             
             // 🚀 Initial load
             .task {
-                await vm.filters()
                 await vm.loadInitial()
-               
+                await vm.filters()
             }
 
             // 🧰 Toolbar
@@ -112,11 +111,15 @@ struct HomeView: View {
             // 🎯 Filters
             .sheet(isPresented: $showFilterSheet) {
                 FilterView(
-                    vm: FilterViewModel(
-                        repo: vm.repo,
-                        network: network,
-                        initialFilters: nil
-                    )
+                   
+                    designations: vm.allDesignations,
+                    departments: vm.allDepartments,
+                    statuses: vm.allStatuses,
+
+                    // ✅ PASS CURRENT STATE
+                    selectedDesignations: vm.selectedDesignations,
+                    selectedDepartments: vm.selectedDepartments,
+                    selectedStatuses: vm.selectedStatuses
                 ) { designations, departments, statuses in
 
                     vm.selectedDesignations = designations
@@ -138,10 +141,6 @@ extension HomeView {
     private var contentView: some View {
 
         
-//        if vm.isLoading {
-//               ProgressView()
-//                   .frame(maxHeight: .infinity)
-//           }
         if vm.isLoading && vm.employees.isEmpty {
             List {
                 ForEach(0..<10, id: \.self) { _ in
@@ -157,12 +156,6 @@ extension HomeView {
             if vm.showNewBanner {
                 Button {
                     vm.showNewBanner = false
-
-//                    // scroll to top OR reload
-//                    Task {
-//                        await vm.loadInitial()
-//                    }
-
                 } label: {
                     Text("New employees available")
                         .font(.subheadline)
@@ -187,11 +180,6 @@ extension HomeView {
                 EmployeeRowView(employee: employee)
 
                     .onAppear {
-//                         if vm.shouldLoadMore(currentItem: employee){
-//                            Task{
-//                                await vm.loadMore()
-//                            }
-//                        }
                         // SIMPLE PAGINATION TRIGGER
                         if employee.id == vm.displayEmployees.last?.id {
                             Task { await vm.loadMore() }
@@ -206,7 +194,7 @@ extension HomeView {
             }
             .onDelete(perform: vm.deleteEmployee)
 
-            if vm.isPaginatingUI {
+            if vm.isPaginatingUI{
                 HStack {
                     Spacer()
                     ProgressView()

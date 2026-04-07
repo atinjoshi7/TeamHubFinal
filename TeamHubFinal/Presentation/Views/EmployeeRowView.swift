@@ -9,13 +9,13 @@ import SwiftUI
 import Kingfisher
 struct EmployeeRowView: View {
     let employee: Employee
- 
+   
     var body: some View {
         HStack(spacing: 12) {
             AvatarView(
-                   urlString: employee.imgUrl,
-                   name: employee.name,
-                   size: 50
+                url: ImageURLHelper.validURL(from: employee.imgUrl ?? ""),
+                   initials: initials,
+                  size: 50
                )
             VStack(alignment: .leading, spacing: 4) {
                 Text(employee.name)
@@ -44,73 +44,28 @@ struct EmployeeRowView: View {
     }
 
     private var initials: String {
-        let comps = employee.name.split(separator: " ")
-        return comps.prefix(2)
-            .compactMap { $0.first }
-            .map { String($0) }
-            .joined()
-    }
-}
-
-
-
-struct AvatarView: View {
-    
-    let urlString: String?
-    let name: String
-    let size: CGFloat
-    
-    var body: some View {
+        let words = employee.name
+            .trimmingCharacters(in: .whitespaces)
+            .components(separatedBy: .whitespaces)
+            .filter { !$0.isEmpty }
         
-        if let url = validURL {
-            KFImage(url)
-                .placeholder {
-                    fallback
-                }
-                .onFailure { error in
-                   
-                }
-                .retry(maxCount: 2, interval: .seconds(1))
-                .resizable()
-                .scaledToFill()
-                .frame(width: size, height: size)
-                .clipShape(Circle())
-        } else {
-            fallback
+        switch words.count {
+        case 0: return "?"
+        case 1: return String(words[0].prefix(1)).uppercased()
+        default: return (String(words[0].prefix(1)) + String(words[1].prefix(1))).uppercased()
         }
     }
 }
-
-// MARK: - Helpers
-extension AvatarView {
+struct ImageURLHelper {
     
-    private var validURL: URL? {
-        guard let raw = urlString?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-              !raw.isEmpty,
-              let url = URL(string: raw)
-        else {
-            return nil
-        }
+    static func validURL(from string: String?) -> URL? {
+        guard
+            let string,
+            !string.isEmpty,
+            let url = URL(string: string),
+            url.scheme == "https" || url.scheme == "http"
+        else { return nil }
+        
         return url
-    }
-    
-    private var fallback: some View {
-        Circle()
-            .fill(Color.gray.opacity(0.3))
-            .frame(width: size, height: size)
-            .overlay(
-                Text(initials)
-                    .font(.headline)
-                    .foregroundColor(.gray)
-            )
-    }
-    
-    private var initials: String {
-        let comps = name.split(separator: " ")
-        return comps.prefix(2)
-            .compactMap { $0.first }
-            .map { String($0) }
-            .joined()
     }
 }

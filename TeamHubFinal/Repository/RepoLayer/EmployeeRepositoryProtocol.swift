@@ -19,11 +19,11 @@ protocol EmployeeRepositoryProtocol {
     func refresh() async -> [Employee]
 
     // MARK: Search + Filter
-    func search(
+    func searchNFilter(
         query: String?,
         designations: [String],
         departments: [String],
-        statuses: [String]
+        statuses: [String],
     ) async -> [Employee]
 
     // MARK: CRUD
@@ -65,7 +65,7 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
     private var dbOffset = 0
     private let limit = 20
     private var hasNext = true
-    
+    private var searchOffset = 0
 
     init(remote: EmployeeRemoteDataSourceProtocol,
          local: EmployeeLocalDataSourceProtocol,
@@ -73,7 +73,6 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
         self.remote = remote
         self.local = local
         self.network = network
-//        self.apiOffset
     }
     
     
@@ -81,10 +80,6 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
         return local.fetchNonDeleted(limit: limit, offset: 0)
     }
     
-//    func observeEmployees(limit:Int) -> AnyPublisher<[Employee], Never> {
-//        local.observeEmployees(limit:limit)
-//    }
-
     // MARK: - INITIAL
     func loadInitial() async -> [Employee] {
 
@@ -179,7 +174,7 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
 
     // MARK: - SEARCH + FILTER (UNIFIED)
 
-    func search(
+    func searchNFilter(
         query: String?,
         designations: [String],
         departments: [String],
@@ -188,8 +183,8 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
 
         if network.isConnected {
             do {
-                let res = try await remote.fetchFilteredEmployees(
-                    limit: 50,
+                let res = try await remote.fetchSearchNFilteredEmployees(
+                    limit: 1000,
                     offset: 0,
                     search: query,
                     designations: designations,

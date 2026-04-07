@@ -46,7 +46,10 @@ enum DateUtils {
 
     static func toYYYYMMDD(_ date: Date?) -> String? {
         guard let date = date else { return nil }
-        return yyyyMMddFormatter.string(from: date)
+        
+         let value = yyyyMMddFormatter.string(from: date)
+        print(value)
+        return value
     }
 
     static func toISO8601(_ date: Date?) -> String? {

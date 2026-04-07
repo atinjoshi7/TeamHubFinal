@@ -8,44 +8,72 @@
 import Foundation
 import SwiftUI
 
+struct SelectedFilters {
+    var designations: Set<String>
+    var departments: Set<String>
+    var statuses: Set<String>
+}
+
 struct FilterView: View {
 
-    @StateObject private var vm: FilterViewModel
     @Environment(\.dismiss) private var dismiss
+//    @Binding var isSearchorFilter: Bool
+    
+    // ✅ OPTIONS
+    let designations: [String]
+    let departments: [String]
+    let statuses: [String]
+
+    // ✅ LOCAL STATE (temporary UI editing)
+    @State private var selectedDesignations: Set<String>
+    @State private var selectedDepartments: Set<String>
+    @State private var selectedStatuses: Set<String>
 
     let onApply: (Set<String>, Set<String>, Set<String>) -> Void
 
-    init(vm: FilterViewModel,
-         onApply: @escaping (Set<String>, Set<String>, Set<String>) -> Void) {
-                 _vm = StateObject(wrappedValue: vm)
-                 self.onApply = onApply
+    init(
+        designations: [String],
+        departments: [String],
+        statuses: [String],
+        selectedDesignations: Set<String>,
+        selectedDepartments: Set<String>,
+        selectedStatuses: Set<String>,
+        onApply: @escaping (Set<String>, Set<String>, Set<String>) -> Void,
+       
+    ) {
+        self.designations = designations
+        self.departments = departments
+        self.statuses = statuses
+
+        _selectedDesignations = State(initialValue: selectedDesignations)
+        _selectedDepartments = State(initialValue: selectedDepartments)
+        _selectedStatuses = State(initialValue: selectedStatuses)
+
+        self.onApply = onApply
     }
 
     var body: some View {
         NavigationStack {
             List {
 
-                // MARK: - Designations
                 Section("Designation") {
                     multiSelectSection(
-                        items: vm.filters.designations,
-                        selected: $vm.selectedDesignations
+                        items: designations,
+                        selected: $selectedDesignations
                     )
                 }
 
-                // MARK: - Departments
                 Section("Department") {
                     multiSelectSection(
-                        items: vm.filters.departments,
-                        selected: $vm.selectedDepartments
+                        items: departments,
+                        selected: $selectedDepartments
                     )
                 }
 
-                // MARK: - Status
                 Section("Status") {
                     multiSelectSection(
-                        items: vm.filters.statuses,
-                        selected: $vm.selectedStatuses
+                        items: statuses,
+                        selected: $selectedStatuses
                     )
                 }
             }
@@ -53,29 +81,29 @@ struct FilterView: View {
             .navigationTitle("Filters")
             .toolbar {
 
-                // Reset
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("Reset") {
-                        vm.reset()
+                        selectedDesignations.removeAll()
+                        selectedDepartments.removeAll()
+                        selectedStatuses.removeAll()
                     }
                 }
 
-                // Apply
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Apply") {
                         onApply(
-                            vm.selectedDesignations,
-                            vm.selectedDepartments,
-                            vm.selectedStatuses
+                            selectedDesignations,
+                            selectedDepartments,
+                            selectedStatuses
                         )
                         dismiss()
                     }
                 }
             }
-            
         }
     }
 }
+
 extension FilterView {
 
     func multiSelectSection(

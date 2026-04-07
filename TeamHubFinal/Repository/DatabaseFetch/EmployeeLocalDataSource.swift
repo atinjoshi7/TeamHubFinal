@@ -107,6 +107,7 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
             entity.email = employee.email
             entity.city = employee.city
             entity.country = employee.country
+            entity.joiningDate = employee.joiningDate
             entity.createdAt = employee.createdAt
             entity.deletedAt = employee.deletedAt
             entity.updatedAt = Date()
@@ -137,32 +138,6 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
 
         return (try? stack.viewContext.count(for: req)) ?? 0
     }
-    
-//    func observeEmployees(limit:Int) -> AnyPublisher<[Employee], Never> {
-//
-//        let context = stack.viewContext
-//
-//        let request: NSFetchRequest<EmployeeEntity> = EmployeeEntity.fetchRequest()
-//        request.predicate = NSPredicate(format: "deletedAt == nil")
-//        request.sortDescriptors = [
-//            NSSortDescriptor(key: "createdAt", ascending: false)
-//        ]
-//        request.fetchLimit = limit
-//
-//        return NotificationCenter.default.publisher(
-//            for: .NSManagedObjectContextDidSave,
-//            object: context
-//        )
-//        .map { _ in
-//            (try? context.fetch(request))?.map { $0.toDomain() } ?? []
-//        }
-//        .prepend(
-//            (try? context.fetch(request))?.map { $0.toDomain() } ?? []
-//        )
-//        .eraseToAnyPublisher()
-//    }
-    
-    
     
     // MARK: - SAVE (Batch Insert + Protect Local Edits)
     func save(_ employees: [Employee]) {
@@ -200,7 +175,7 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
             entity.email = emp.email
             entity.city = emp.city
             entity.country = emp.country
-
+            entity.joiningDate = emp.joiningDate
             // Phones reset
             if let old = entity.phones as? Set<PhoneEntity> {
                 old.forEach { ctx.delete($0) }
@@ -271,6 +246,7 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
         entity.email = employee.email
         entity.city = employee.city
         entity.country = employee.country
+        entity.joiningDate = employee.joiningDate
         entity.createdAt = employee.createdAt   // 🔥 IMPORTANT
         entity.deletedAt = employee.deletedAt
         entity.updatedAt = Date()
@@ -328,9 +304,14 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
 
         // 🔥 CRITICAL (YOU MUST HAVE THIS)
         entity.needSync = true
-        entity.syncAction = "update"
+        if entity.syncAction == "create" {
+            
+        }else{
+            entity.syncAction = "update"
+        }
         entity.updatedAt = Date()
         entity.deletedAt = nil
+        entity.joiningDate = employee.joiningDate
         print("🔥 needSync:", entity.needSync)
         print("🔥 syncAction:", entity.syncAction ?? "")
         // MARK: - Phones
@@ -455,6 +436,7 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
         entity.city = employee.city
         entity.country = employee.country
         entity.createdAt = Date()
+        entity.joiningDate = employee.joiningDate
         entity.needSync = true
         entity.syncAction = "create"
         entity.updatedAt = Date()

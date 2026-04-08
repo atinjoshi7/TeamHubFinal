@@ -101,10 +101,14 @@ final class HomeViewModel: ObservableObject {
     // MARK: - LOAD
 
     func loadInitial() async {
-        if hasLoadedInitially { return }
+        guard !hasLoadedInitially else { return }
         hasLoadedInitially = true
         isLoading = true                         // guard is now active
         let data = await repo.loadUntilFilled(targetCount: 10)
+        
+        if !syncManager.syncRunning {
+           await syncManager.startAutoSync()
+        }
         currentLimit = 20
         employees = data                         // single authoritative write
         isLoading = false                        // guard released; observer takes over
@@ -114,31 +118,41 @@ final class HomeViewModel: ObservableObject {
         guard !isPaginating else { return }
         isPaginating = true
         isPaginatingUI = true
-
+        
         let data = await repo.loadMore()
         
-        if !data.isEmpty {
-            employees.append(contentsOf: data)
-        }
-
+        //        if !data.isEmpty {
+        employees.append(contentsOf: data)
+        //        }
+        
         isPaginating = false
         isPaginatingUI = false
     }
     
     func refresh() async {
+        
         guard !isRefreshingTaskRunning else { return }
         isRefreshingTaskRunning = true
         isLoading = true
         syncState.isRefreshing = true
-        syncManager.stopAutoSync()
+//        syncManager.stopAutoSync()
         
-        let data = await repo.refresh()
-        currentLimit = 20
-        employees = data
-        syncState.isRefreshing = false
-        syncManager.startAutoSync()
-        isLoading = false
-        isRefreshingTaskRunning = false
+        defer {
+            syncState.isRefreshing = false
+//            syncManager.startAutoSync()
+            isLoading = false
+            isRefreshingTaskRunning = false
+        }
+        
+        await repo.refresh()
+        
+        hasLoadedInitially = false
+        await loadInitial()
+        
+        
+//        currentLimit = 20
+//        employees = data
+        
     }
 
     // MARK: - SEARCH (UNIFIED)

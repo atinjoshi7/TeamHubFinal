@@ -10,9 +10,10 @@ import Foundation
 protocol SyncManaging {
     func start()
     func syncNow() async
-    func startAutoSync()
+    func startAutoSync() async
     func stopAutoSync()
     func syncFromServer() async
+    var syncRunning: Bool { get }
 }
 
 final class SyncManager: SyncManaging {
@@ -22,6 +23,7 @@ final class SyncManager: SyncManaging {
     private let syncState: SyncState
     private var isSyncing = false
     private var syncTimer: Timer?
+    private(set) var syncRunning = false
     init(repo: EmployeeRepositoryProtocol,
          network: NetworkMonitoring,syncState:SyncState) {
         self.repo = repo
@@ -70,8 +72,9 @@ final class SyncManager: SyncManaging {
     }
     
     
-    func startAutoSync() {
+    func startAutoSync() async {
         
+        syncRunning = true
         stopAutoSync() // prevent duplicates
 
         syncTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in

@@ -49,9 +49,8 @@ protocol EmployeeLocalDataSourceProtocol {
     func softDelete(_ id: String, date: Date?)
     
     func get(by id: String) -> Employee?
-    
+    func clearAllExceptPendingSync() async
     func updateFromServer(_ employee: Employee)
-//    func observeEmployees(limit:Int) -> AnyPublisher<[Employee], Never>
     func nonDeletedCount() -> Int
     func fetchNonDeleted(limit: Int, offset: Int) -> [Employee]
     func batchUpdateFromServer(_ employees: [Employee]) 
@@ -59,7 +58,7 @@ protocol EmployeeLocalDataSourceProtocol {
 final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
 
     
-
+   private var dbOffset = 0
     private let stack: CoreDataStacking
 
     init(stack: CoreDataStacking) {
@@ -67,6 +66,9 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
     }
     
     func fetchNonDeleted(limit: Int, offset: Int) -> [Employee] {
+//        if offset == 0{
+//            dbOffset = 0
+//        }
         let ctx = stack.viewContext
 
         let req: NSFetchRequest<EmployeeEntity> = EmployeeEntity.fetchRequest()
@@ -78,8 +80,10 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
         req.sortDescriptors = [
             NSSortDescriptor(key: "createdAt", ascending: false)
         ]
-
-        return (try? ctx.fetch(req))?.map { $0.toDomain() } ?? []
+        
+        let result = (try? ctx.fetch(req))?.map { $0.toDomain() } ?? []
+//        dbOffset = result.count
+        return result
     }
     
     
@@ -110,6 +114,7 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
             entity.joiningDate = employee.joiningDate
             entity.createdAt = employee.createdAt
             entity.deletedAt = employee.deletedAt
+            entity.syncAction = "none"
             entity.updatedAt = Date()
         }
         
@@ -176,6 +181,7 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
             entity.city = emp.city
             entity.country = emp.country
             entity.joiningDate = emp.joiningDate
+            entity.syncAction = "none"
             // Phones reset
             if let old = entity.phones as? Set<PhoneEntity> {
                 old.forEach { ctx.delete($0) }
@@ -420,6 +426,30 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
         ]
         return (try? stack.viewContext.fetch(req))?.map { $0.toDomain() } ?? []
     }
+    
+    func clearAllExceptPendingSync() async {
+        let ctx = stack.viewContext
+
+        let req: NSFetchRequest<EmployeeEntity> = EmployeeEntity.fetchRequest()
+        
+        // 🔥 Only delete those NOT needing sync
+        req.predicate = NSPredicate(format: "syncAction == %@", "none")
+
+        do {
+            let employeesToDelete = try ctx.fetch(req)
+
+            for employee in employeesToDelete {
+                ctx.delete(employee)
+            }
+
+            stack.save(context: ctx)
+            print("🧹 Cleared DB except pending sync employees")
+
+        } catch {
+            print("❌ Failed to clear selective DB:", error)
+        }
+    }
+    
     func add(_ employee: Employee) {
 
         let ctx = stack.viewContext

@@ -75,7 +75,7 @@ struct HomeView: View {
             )
             
             // 🚀 Initial load
-            .task {
+            .task(id: "one time"){
                 await vm.loadInitial()
                 await vm.filters()
             }
@@ -208,7 +208,9 @@ extension HomeView {
 
         //  CLEAN REFRESH (no syncManager here anymore)
         .refreshable {
-            await vm.refresh()
+            Task {
+                await vm.refresh()
+            }
         }
     }
 }

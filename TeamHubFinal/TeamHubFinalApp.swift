@@ -22,10 +22,7 @@ struct TeamHubFinalApp: App {
                 .environmentObject(network)
                 .environmentObject(themeManager)
                 .preferredColorScheme(themeManager.colorScheme)
-                .onAppear {
-                    container.syncManager.start()
-                    container.syncManager.startAutoSync()
-                }
+                
                 
         }
     }

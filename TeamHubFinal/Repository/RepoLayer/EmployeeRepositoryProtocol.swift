@@ -16,7 +16,7 @@ protocol EmployeeRepositoryProtocol {
     // MARK: List
     func loadInitial() async -> [Employee]
     func loadMore() async -> [Employee]
-    func refresh() async -> [Employee]
+    func refresh() async 
 
     // MARK: Search + Filter
     func searchNFilter(
@@ -136,10 +136,10 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
         }
 
         // 🔥 After API → fetch again from DB
-        var newData = local.fetchNonDeleted(limit: limit, offset: dbOffset)
+        let newData = local.fetchNonDeleted(limit: limit, offset: dbOffset)
         
         if newData.isEmpty {
-            newData = await self.loadMore()
+            return await self.loadMore()
         }
 
         dbOffset += newData.count
@@ -153,23 +153,25 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
     }
     
     // MARK: - REFRESH
-    func refresh() async -> [Employee] {
+    func refresh() async {
 
         print("🔄 REFRESH START")
 
         // ✅ RESET BOTH OFFSETS
-        apiOffset = 0
-        dbOffset = 0
-        hasNext = true
-
+//        apiOffset = 0
+//        dbOffset = 0
+//        hasNext = true
+        if network.isConnected{
+            await local.clearAllExceptPendingSync()
+        }
         // ✅ DO NOT clear DB
         // We will just overwrite via API
 
-        let data = await loadUntilFilled(targetCount: limit)
-        dbOffset = data.count // changed now.
-        print("✅ REFRESH DONE:", data.count)
-
-        return data
+//        let data = await loadUntilFilled(targetCount: limit)
+////        dbOffset = data.count  //changed now.
+//        print("✅ REFRESH DONE:", data.count)
+//        
+//        return data
     }
 
     // MARK: - SEARCH + FILTER (UNIFIED)
@@ -292,6 +294,7 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
 
     func loadUntilFilled(targetCount: Int) async -> [Employee] {
 
+        hasNext = true
         dbOffset = 0
         var visible = local.fetchNonDeleted(limit: limit, offset: dbOffset)
         

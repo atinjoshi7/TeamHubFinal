@@ -48,7 +48,12 @@ protocol EmployeeRepositoryProtocol {
        func getSyncAction(for id: String) -> String
       func fetchFromLocal(limit: Int) -> [Employee]
 
-    
+    func searchNFilterLoadMore(
+        query: String?,
+        designations: [String],
+        departments: [String],
+        statuses: [String]
+    ) async -> [Employee]
     func loadUntilFilled(targetCount: Int) async -> [Employee]
     func fetchFromDB(limit: Int) -> [Employee]
 //    func observeEmployees(limit:Int) -> AnyPublisher<[Employee], Never>
@@ -66,6 +71,7 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
     private let limit = 20
     private var hasNext = true
     private var searchOffset = 0
+    private var searchHasNext = true
 
     init(remote: EmployeeRemoteDataSourceProtocol,
          local: EmployeeLocalDataSourceProtocol,
@@ -157,21 +163,10 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
 
         print("🔄 REFRESH START")
 
-        // ✅ RESET BOTH OFFSETS
-//        apiOffset = 0
-//        dbOffset = 0
-//        hasNext = true
         if network.isConnected{
             await local.clearAllExceptPendingSync()
         }
-        // ✅ DO NOT clear DB
-        // We will just overwrite via API
-
-//        let data = await loadUntilFilled(targetCount: limit)
-////        dbOffset = data.count  //changed now.
-//        print("✅ REFRESH DONE:", data.count)
-//        
-//        return data
+     
     }
 
     // MARK: - SEARCH + FILTER (UNIFIED)
@@ -182,35 +177,76 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
         departments: [String],
         statuses: [String]
     ) async -> [Employee] {
-
+        
+        searchOffset = 0
+        searchHasNext = true
+        
         if network.isConnected {
             do {
                 let res = try await remote.fetchSearchNFilteredEmployees(
-                    limit: 1000,
-                    offset: 0,
+                    limit: 20,
+                    offset: searchOffset,
                     search: query,
                     designations: designations,
                     departments: departments,
                     statuses: statuses
                 )
-
+                searchOffset = res.data.count
+                searchHasNext = res.meta.hasNextPage
+                
                 return res.data
                     .map { $0.toDomain() }
                     .filter { $0.deletedAt == nil }
 
             } catch {
-                print("❌ API search fail → fallback DB")
+                print("API search fail → fallback DB")
             }
         }
 
         return local.fetchFiltered(
+            
             search: query,
             designations: designations,
             departments: departments,
             statuses: statuses
         )
     }
-
+    func searchNFilterLoadMore(
+        query: String?,
+        designations: [String],
+        departments: [String],
+        statuses: [String]
+    ) async -> [Employee] {
+        
+       
+        if network.isConnected {
+            
+            guard searchHasNext else { return [] }
+            do {
+                let res = try await remote.fetchSearchNFilteredEmployees(
+                    limit: 20,
+                    offset: searchOffset,
+                    search: query,
+                    designations: designations,
+                    departments: departments,
+                    statuses: statuses
+                )
+                searchOffset += res.data.count
+                searchHasNext = res.meta.hasNextPage
+                
+                 let result = res.data
+                    .map { $0.toDomain() }
+                    .filter { $0.deletedAt == nil }
+                if result.isEmpty{
+                    return await searchNFilterLoadMore(query: query, designations: designations, departments: departments, statuses: statuses)
+                }
+                return result
+            } catch {
+                print("API search fail → fallback DB")
+            }
+        }
+        return []
+    }
     // MARK: - CRUD
 
     func addEmployee(_ employee: Employee) {

@@ -10,9 +10,12 @@ import Combine
 final class EmployeeDetailViewModel: ObservableObject {
 
     @Published private(set) var employee: Employee
-
-    init(employee: Employee) {
+    var departments: [String]
+    var designations: [String]
+    init(employee: Employee,designations:[String],departments:[String]) {
         self.employee = employee
+        self.departments = departments
+        self.designations = designations
     }
 
     // MARK: - Display Helpers

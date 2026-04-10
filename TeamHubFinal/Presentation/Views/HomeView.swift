@@ -17,6 +17,7 @@ struct HomeView: View {
 
     @State private var showFilterSheet = false
     @State private var showAddSheet = false
+   
 
     @FocusState private var isFocused: Bool
 
@@ -36,8 +37,8 @@ struct HomeView: View {
                     SearchBarView(
                         text: $vm.searchQuery,
                         onChange: { _ in
-                            Task { await vm.performSearch() }
-                        },
+                            vm.handleSearch(query: vm.searchQuery)
+                            },
                         isFocused: $isFocused
                     )
 
@@ -60,7 +61,11 @@ struct HomeView: View {
             // 🔁 Navigation
             .navigationDestination(for: Employee.self) { employee in
                 EmployeeDetailView(
-                    vm: EmployeeDetailViewModel(employee: employee),
+                    vm: EmployeeDetailViewModel(
+                        employee: employee,
+                        designations: vm.allDesignations,
+                        departments: vm.allDepartments
+                    ),
                     onUpdate: { updated in
                         vm.updateEmployee(updated)
                     }
@@ -141,7 +146,7 @@ extension HomeView {
     private var contentView: some View {
 
         
-        if vm.isLoading && vm.employees.isEmpty {
+        if (vm.isLoading && vm.hasLoadedInitially) || (vm.isLoading && vm.displayEmployees.isEmpty){
             List {
                 ForEach(0..<10, id: \.self) { _ in
                     ShimmerRowView()
@@ -153,7 +158,11 @@ extension HomeView {
             .allowsHitTesting(false)
         }
         else {
-            if vm.showNewBanner {
+            
+            if !vm.isLoading && vm.displayEmployees.isEmpty {
+                EmptyStateView()
+            }
+            else if vm.showNewBanner {
                 Button {
                     vm.showNewBanner = false
                 } label: {
@@ -178,11 +187,17 @@ extension HomeView {
             ForEach(vm.displayEmployees, id: \.id) { employee in
 
                 EmployeeRowView(employee: employee)
-
+                    .id(employee.id)
                     .onAppear {
                         // SIMPLE PAGINATION TRIGGER
                         if employee.id == vm.displayEmployees.last?.id {
-                            Task { await vm.loadMore() }
+                            Task {
+                                if vm.isSearchingOrFiltering {
+                                    Task { await vm.performSearchLoadMore() }
+                                } else {
+                                    Task { await vm.loadMore() }
+                                }
+                            }
                         }
                     }
 

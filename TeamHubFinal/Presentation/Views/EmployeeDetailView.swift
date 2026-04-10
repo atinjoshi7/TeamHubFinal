@@ -80,6 +80,8 @@ struct EmployeeDetailView: View {
         }
         .sheet(isPresented: $showEdit) {
             EditEmployeeView(employee: vm.employee,
+                             departments : vm.departments,
+                             designations: vm.designations
             ) { updated in
                 onUpdate(updated)
                 vmRefresh(updated)

@@ -57,7 +57,7 @@ protocol EmployeeLocalDataSourceProtocol {
 }
 final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
 
-    
+   var NewEmployeeCount = 0
    private var dbOffset = 0
     private let stack: CoreDataStacking
 
@@ -101,6 +101,7 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
             } else {
                 entity = EmployeeEntity(context: ctx)
                 entity.id = employee.id
+                NewEmployeeCount += 1
             }
             
             entity.name = employee.name

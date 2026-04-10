@@ -16,13 +16,13 @@ final class HomeViewModel: ObservableObject {
     @Published var allDepartments: [String] = []
     @Published var allStatuses: [String] = []
     @Published var showNewBanner = false
-
+    
     private var searchOffset = 0
     private let limit = 10
     private var lastSearchQuery: String?
-    
+    private(set) var isSearching = false
     // MARK: - UI STATE
-    private var hasLoadedInitially = false
+    var hasLoadedInitially = false
     private var isRefreshingTaskRunning = false
     @Published var isRefreshing = false
     private let  syncState: SyncState
@@ -37,12 +37,12 @@ final class HomeViewModel: ObservableObject {
     @Published var selectedStatuses: Set<String> = []
     @Published var isPaginatingUI = false
     @Published var isLoading = false
-//    private var lastSearchQuery: String?
     
     private var isPaginating = false
+    private(set) var initialSearchRequestDone = false
     private var observerId: UUID?
     private var reloadTask: Task<Void,Never>?
-    
+    private var searchTask: Task<Void,Never>?
     var selectedFilters: SelectedFilters {
         SelectedFilters(
             designations: selectedDesignations,
@@ -73,6 +73,10 @@ final class HomeViewModel: ObservableObject {
         }
     }
 
+//    var newEmployee:Int{
+//        if repo.a
+//    }
+    
     // MARK: - COMPUTED
 
     var displayEmployees: [Employee] {
@@ -98,12 +102,35 @@ final class HomeViewModel: ObservableObject {
         allStatuses = data.statuses
     }
     
+    func handleSearch(query: String) {
+        isLoading = true
+        defer {
+            isLoading = false
+//            initialSearchRequestDone = true
+        }
+        searchTask?.cancel()
+        
+        searchTask = Task {
+            
+            try? await Task.sleep(nanoseconds: 900_000_000)
+            
+            guard !Task.isCancelled else { return }
+            
+            await performSearch()
+        }
+    }
+    
     // MARK: - LOAD
 
     func loadInitial() async {
         guard !hasLoadedInitially else { return }
         hasLoadedInitially = true
-        isLoading = true                         // guard is now active
+        isLoading = true// guard is now active
+        defer {
+            isLoading = false
+            initialSearchRequestDone = false
+//            searchResults = []
+        }
         let data = await repo.loadUntilFilled(targetCount: 10)
         
         if !syncManager.syncRunning {
@@ -111,7 +138,7 @@ final class HomeViewModel: ObservableObject {
         }
         currentLimit = 20
         employees = data                         // single authoritative write
-        isLoading = false                        // guard released; observer takes over
+//        isLoading = false                        // guard released; observer takes over
     }
 
     func loadMore() async {
@@ -143,11 +170,15 @@ final class HomeViewModel: ObservableObject {
             isLoading = false
             isRefreshingTaskRunning = false
         }
-        
-        await repo.refresh()
-        
-        hasLoadedInitially = false
-        await loadInitial()
+        if isSearchingOrFiltering {
+            await performSearch()
+        }
+        else {
+            await repo.refresh()
+            
+            hasLoadedInitially = false
+            await loadInitial()
+        }
         
         
 //        currentLimit = 20
@@ -159,17 +190,34 @@ final class HomeViewModel: ObservableObject {
 
     func performSearch() async {
         
-        
         let result = await repo.searchNFilter(
             query: searchQuery,
             designations: Array(selectedDesignations),
             departments: Array(selectedDepartments),
             statuses: Array(selectedStatuses)
         )
-
+        
         searchResults = result.filter { $0.deletedAt == nil }
     }
-
+    func performSearchLoadMore() async {
+        guard !isPaginating else { return }
+        isPaginating = true
+        isPaginatingUI = true
+        
+        let result = await repo.searchNFilterLoadMore(
+            query: searchQuery,
+            designations: Array(selectedDesignations),
+            departments: Array(selectedDepartments),
+            statuses: Array(selectedStatuses)
+        )
+//        if result.isEmpty {
+//            searchResults = []
+//        }
+        searchResults.append(contentsOf: result.filter { $0.deletedAt == nil })
+        
+        isPaginating = false
+        isPaginatingUI = false
+    }
     // MARK: - CRUD (INSTANT UI UPDATE)
 
     func addEmployee(_ emp: Employee) {

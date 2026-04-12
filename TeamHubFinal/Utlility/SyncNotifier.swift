@@ -17,9 +17,6 @@ final class SyncNotifier{
         observer[id] = callback
         return id
     }
-    func removeObserver(){
-        
-    }
     func notify(){
         observer.values.forEach{$0()}
     }

@@ -31,7 +31,7 @@ struct HomeView: View {
 
             VStack(spacing: 0) {
 
-                // 🔍 SEARCH + THEME
+                // SEARCH + THEME
                 HStack {
 
                     SearchBarView(
@@ -58,7 +58,7 @@ struct HomeView: View {
             }
             .navigationTitle("Employees")
 
-            // 🔁 Navigation
+            //  Navigation
             .navigationDestination(for: Employee.self) { employee in
                 EmployeeDetailView(
                     vm: EmployeeDetailViewModel(
@@ -72,20 +72,20 @@ struct HomeView: View {
                 )
             }
 
-            // 👆 dismiss keyboard
+            //  dismiss keyboard
             .simultaneousGesture(
                 TapGesture().onEnded {
                     isFocused = false
                 }
             )
             
-            // 🚀 Initial load
+            // Initial load
             .task(id: "one time"){
                 await vm.loadInitial()
                 await vm.filters()
             }
 
-            // 🧰 Toolbar
+            // Toolbar
             .toolbar {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
 
@@ -103,7 +103,7 @@ struct HomeView: View {
                 }
             }
 
-            // ➕ Add Employee
+            // Add Employee
             .sheet(isPresented: $showAddSheet) {
                 AddEmployeeView(
                     departments: vm.allDepartments,
@@ -113,7 +113,7 @@ struct HomeView: View {
                 }
             }
 
-            // 🎯 Filters
+            // Filters
             .sheet(isPresented: $showFilterSheet) {
                 FilterView(
                    
@@ -121,7 +121,7 @@ struct HomeView: View {
                     departments: vm.allDepartments,
                     statuses: vm.allStatuses,
 
-                    // ✅ PASS CURRENT STATE
+                    // PASS CURRENT STATE
                     selectedDesignations: vm.selectedDesignations,
                     selectedDepartments: vm.selectedDepartments,
                     selectedStatuses: vm.selectedStatuses

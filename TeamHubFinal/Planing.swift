@@ -7,7 +7,7 @@
 
 /* Sync Calling
 app launch
- app foregroiund
+app foreground
 network reconnect
 periodically 15-60
 after local change

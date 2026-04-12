@@ -26,7 +26,7 @@ final class URLSessionAPIClient: APIClient {
             request.setValue($0.value, forHTTPHeaderField: $0.key)
         }
 
-        print(" Request: \(request.httpMethod ?? "") \(url.absoluteString)")
+        print("Request: \(request.httpMethod ?? "") \(url.absoluteString)")
 
         let (data, response) = try await URLSession.shared.data(for: request)
 
@@ -40,8 +40,8 @@ final class URLSessionAPIClient: APIClient {
         if httpResponse.statusCode == 204 {
             return EmptyResponse() as! T
         }
+        
         let decoder = JSONDecoder()
-//        decoder.keyDecodingStrategy = .convertFromSnakeCase
         return try decoder.decode(T.self, from: data)
     }
 }

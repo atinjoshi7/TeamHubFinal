@@ -66,9 +66,7 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
     }
     
     func fetchNonDeleted(limit: Int, offset: Int) -> [Employee] {
-//        if offset == 0{
-//            dbOffset = 0
-//        }
+
         let ctx = stack.viewContext
 
         let req: NSFetchRequest<EmployeeEntity> = EmployeeEntity.fetchRequest()
@@ -82,7 +80,6 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
         ]
         
         let result = (try? ctx.fetch(req))?.map { $0.toDomain() } ?? []
-//        dbOffset = result.count
         return result
     }
     
@@ -119,7 +116,6 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
             entity.updatedAt = Date()
         }
         
-        // Single save = single observer notification = no flicker
         stack.save(context: ctx)
     }
     
@@ -162,14 +158,14 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
             let entity: EmployeeEntity
 
             if let existing {
-                // 🔥 UPDATE
+                // UPDATE
                 entity = existing
-                print("✏️ Updating employee: \(emp.id)")
+                print(" Updating employee: \(emp.id)")
             } else {
-                // 🔥 CREATE
+                // CREATE
                 entity = EmployeeEntity(context: ctx)
                 entity.id = emp.id
-                print("🆕 Creating employee: \(emp.id)")
+                print("Creating employee: \(emp.id)")
             }
             
             
@@ -195,7 +191,7 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
                 p.number = phone.number
                 p.employee = entity
             }
-            entity.createdAt = emp.createdAt   // ✅ ADD
+            entity.createdAt = emp.createdAt   // ADD
             entity.deletedAt = emp.deletedAt   // already added
         }
 
@@ -231,18 +227,18 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
         if let existing = try? ctx.fetch(req).first {
             entity = existing
 
-            // ⚠️ Protect local edits
+            // Protect local edits
             if entity.needSync == true {
-                print("⚠️ Skipping server update due to local changes")
+                print("Skipping server update due to local changes")
                 return
             }
 
-            print("✏️ Updating from server:", employee.id)
+            print("Updating from server:", employee.id)
 
         } else {
             entity = EmployeeEntity(context: ctx)
             entity.id = employee.id
-            print("🆕 Inserting from server:", employee.id)
+            print("Inserting from server:", employee.id)
         }
 
         entity.name = employee.name
@@ -254,7 +250,7 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
         entity.city = employee.city
         entity.country = employee.country
         entity.joiningDate = employee.joiningDate
-        entity.createdAt = employee.createdAt   // 🔥 IMPORTANT
+        entity.createdAt = employee.createdAt   // IMPORTANT
         entity.deletedAt = employee.deletedAt
         entity.updatedAt = Date()
 
@@ -271,9 +267,9 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
         do {
             try ctx.execute(deleteReq)
             stack.save(context: ctx)
-            print("🧹 DB Cleared")
+            print("DB Cleared")
         } catch {
-            print("❌ Failed to clear DB:", error)
+            print("Failed to clear DB:", error)
         }
     }
    
@@ -293,11 +289,11 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
 
         if let existing = try? ctx.fetch(req).first {
             entity = existing
-            print("✏️ Updating existing:", employee.id)
+            print("Updating existing:", employee.id)
         } else {
             entity = EmployeeEntity(context: ctx)
             entity.id = employee.id
-            print("🆕 Creating during update:", employee.id)
+            print("Creating during update:", employee.id)
         }
 
         // MARK: - Update fields
@@ -309,7 +305,7 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
         entity.city = employee.city
         entity.country = employee.country
 
-        // 🔥 CRITICAL (YOU MUST HAVE THIS)
+        // CRITICAL (YOU MUST HAVE THIS)
         entity.needSync = true
         if entity.syncAction == "create" {
             
@@ -319,8 +315,8 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
         entity.updatedAt = Date()
         entity.deletedAt = nil
         entity.joiningDate = employee.joiningDate
-        print("🔥 needSync:", entity.needSync)
-        print("🔥 syncAction:", entity.syncAction ?? "")
+        print("needSync:", entity.needSync)
+        print("syncAction:", entity.syncAction ?? "")
         // MARK: - Phones
         if let old = entity.phones as? Set<PhoneEntity> {
             old.forEach { ctx.delete($0) }
@@ -344,7 +340,7 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
 
         let req: NSFetchRequest<EmployeeEntity> = EmployeeEntity.fetchRequest()
 
-        // ❌ REMOVE FILTER
+        // REMOVE FILTER
          req.predicate = NSPredicate(format: "deletedAt == nil")
 
         req.fetchLimit = limit
@@ -396,7 +392,7 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
     ) -> [Employee] {
 
         let req: NSFetchRequest<EmployeeEntity> = EmployeeEntity.fetchRequest()
-
+        req.predicate = NSPredicate(format: "deletedAt == nil")
         var predicates: [NSPredicate] = []
 
 
@@ -433,7 +429,7 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
 
         let req: NSFetchRequest<EmployeeEntity> = EmployeeEntity.fetchRequest()
         
-        // 🔥 Only delete those NOT needing sync
+        // Only delete those NOT needing sync
         req.predicate = NSPredicate(format: "syncAction == %@", "none")
 
         do {
@@ -444,10 +440,10 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
             }
 
             stack.save(context: ctx)
-            print("🧹 Cleared DB except pending sync employees")
+            print("Cleared DB except pending sync employees")
 
         } catch {
-            print("❌ Failed to clear selective DB:", error)
+            print("Failed to clear selective DB:", error)
         }
     }
     

@@ -22,12 +22,12 @@ struct EmployeeFormValidator {
 
         if text.isEmpty { return nil }
 
-        // ❌ Cannot start with number
+        // Cannot start with number
         if let first = text.first, first.isNumber {
             return "Email cannot start with a number"
         }
 
-        // ❌ '@' must be before '.'
+        // '@' must be before '.'
         if let atIndex = text.firstIndex(of: "@"),
            let dotIndex = text.lastIndex(of: "."),
            atIndex > dotIndex {

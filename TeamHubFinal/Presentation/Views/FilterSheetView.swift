@@ -19,12 +19,12 @@ struct FilterView: View {
     @Environment(\.dismiss) private var dismiss
 //    @Binding var isSearchorFilter: Bool
     
-    // ✅ OPTIONS
+    // OPTIONS
     let designations: [String]
     let departments: [String]
     let statuses: [String]
 
-    // ✅ LOCAL STATE (temporary UI editing)
+    // LOCAL STATE (temporary UI editing)
     @State private var selectedDesignations: Set<String>
     @State private var selectedDepartments: Set<String>
     @State private var selectedStatuses: Set<String>

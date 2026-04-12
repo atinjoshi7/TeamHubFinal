@@ -10,14 +10,14 @@ import Foundation
 import Combine
 import CoreData
 protocol EmployeeRepositoryProtocol {
-
+    
     
     
     // MARK: List
     func loadInitial() async -> [Employee]
     func loadMore() async -> [Employee]
-    func refresh() async 
-
+    func refresh() async
+    
     // MARK: Search + Filter
     func searchNFilter(
         query: String?,
@@ -25,29 +25,29 @@ protocol EmployeeRepositoryProtocol {
         departments: [String],
         statuses: [String],
     ) async -> [Employee]
-
+    
     // MARK: CRUD
     func addEmployee(_ employee: Employee)
     func updateEmployee(_ employee: Employee)
     func deleteEmployee(_ id: String)
-
+    
     // MARK: Filters
     func fetchFilters() async -> Filters
     func fetchFiltersFromDB() -> Filters
-
+    
     // MARK: Sync
     func syncFromServer() async
-
-       func fetchPendingSync() -> [Employee]
-       func markSynced(_ id: String)
-   
-       func syncCreate(_ employee: Employee) async throws
-       func syncUpdate(_ employee: Employee) async throws
-       func syncDelete(_ id: String) async throws
-   
-       func getSyncAction(for id: String) -> String
-      func fetchFromLocal(limit: Int) -> [Employee]
-
+    
+    func fetchPendingSync() -> [Employee]
+    func markSynced(_ id: String)
+    
+    func syncCreate(_ employee: Employee) async throws
+    func syncUpdate(_ employee: Employee) async throws
+    func syncDelete(_ id: String) async throws
+    
+    func getSyncAction(for id: String) -> String
+    func fetchFromLocal(limit: Int) -> [Employee]
+    
     func searchNFilterLoadMore(
         query: String?,
         designations: [String],
@@ -56,15 +56,14 @@ protocol EmployeeRepositoryProtocol {
     ) async -> [Employee]
     func loadUntilFilled(targetCount: Int) async -> [Employee]
     func fetchFromDB(limit: Int) -> [Employee]
-//    func observeEmployees(limit:Int) -> AnyPublisher<[Employee], Never>
 }
 
 final class EmployeeRepository: EmployeeRepositoryProtocol {
-
+    
     private let remote: EmployeeRemoteDataSourceProtocol
     private let local: EmployeeLocalDataSourceProtocol
     private let network: NetworkMonitoring
-
+    
     
     private var apiOffset: Int = UserDefaults.standard.integer(forKey: "api_offset")
     private var dbOffset = 0
@@ -72,7 +71,7 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
     private var hasNext = true
     private var searchOffset = 0
     private var searchHasNext = true
-
+    
     init(remote: EmployeeRemoteDataSourceProtocol,
          local: EmployeeLocalDataSourceProtocol,
          network: NetworkMonitor) {
@@ -88,68 +87,68 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
     
     // MARK: - INITIAL
     func loadInitial() async -> [Employee] {
-
+        
         apiOffset = 0
         dbOffset = 0
         hasNext = true
         UserDefaults.standard.set(apiOffset, forKey: "api_offset")
-
+        
         let dbData = local.fetchNonDeleted(limit: limit, offset: 0)
-
+        
         if !dbData.isEmpty {
-           
+            
             let initial = Array(dbData.prefix(limit))
             dbOffset = initial.count
             return initial
         }
-
+        
         return await loadMore()
     }
     // MARK: - PAGINATION
     func loadMore() async -> [Employee] {
-
-        print("📊 dbOffset:", dbOffset, "apiOffset:", apiOffset)
-
-        // ✅ STEP 1: Try DB first
+        
+        print("dbOffset:", dbOffset, "apiOffset:", apiOffset)
+        
+        // STEP 1: Try DB first
         let dbData = local.fetchNonDeleted(limit: limit, offset: dbOffset)
-
+        
         if !dbData.isEmpty {
             dbOffset += dbData.count
             return dbData
         }
-
-        // ✅ STEP 2: DB exhausted → call API
+        
+        //  STEP 2: DB exhausted → call API
         guard hasNext else {
             return []
         }
-
+        
         if network.isConnected {
             do {
                 print("API CALL → offset:", apiOffset)
-
+                
                 let res = try await remote.fetch(limit: limit, offset: apiOffset)
-
+                
                 let domain = res.data.map { $0.toDomain() }
                 local.save(domain)
-
+                
                 apiOffset += res.data.count
                 hasNext = res.meta.hasNextPage
                 UserDefaults.standard.set(apiOffset, forKey: "api_offset")
-
+                
             } catch {
-                print("❌ API fail:", error.localizedDescription)
+                print("API fail:", error.localizedDescription)
             }
         }
-
-        // 🔥 After API → fetch again from DB
+        
+        // After API → fetch again from DB
         let newData = local.fetchNonDeleted(limit: limit, offset: dbOffset)
         
         if newData.isEmpty {
             return await self.loadMore()
         }
-
+        
         dbOffset += newData.count
-
+        
         return newData
     }
     
@@ -160,17 +159,17 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
     
     // MARK: - REFRESH
     func refresh() async {
-
-        print("🔄 REFRESH START")
-
+        
+        print("REFRESH START")
+        
         if network.isConnected{
             await local.clearAllExceptPendingSync()
         }
-     
+        
     }
-
+    
     // MARK: - SEARCH + FILTER (UNIFIED)
-
+    
     func searchNFilter(
         query: String?,
         designations: [String],
@@ -197,14 +196,13 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
                 return res.data
                     .map { $0.toDomain() }
                     .filter { $0.deletedAt == nil }
-
+                
             } catch {
                 print("API search fail → fallback DB")
             }
         }
-
+        
         return local.fetchFiltered(
-            
             search: query,
             designations: designations,
             departments: departments,
@@ -218,7 +216,7 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
         statuses: [String]
     ) async -> [Employee] {
         
-       
+        
         if network.isConnected {
             
             guard searchHasNext else { return [] }
@@ -234,7 +232,7 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
                 searchOffset += res.data.count
                 searchHasNext = res.meta.hasNextPage
                 
-                 let result = res.data
+                let result = res.data
                     .map { $0.toDomain() }
                     .filter { $0.deletedAt == nil }
                 if result.isEmpty{
@@ -248,88 +246,88 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
         return []
     }
     // MARK: - CRUD
-
+    
     func addEmployee(_ employee: Employee) {
         local.add(employee)
     }
-
+    
     func updateEmployee(_ employee: Employee) {
         local.update(employee)
     }
-
+    
     func deleteEmployee(_ id: String) {
         local.delete(id)
     }
-
+    
     // MARK: - FILTERS
-
+    
     func fetchFilters() async -> Filters {
         (try? await remote.fetchFilters().toDomain()) ?? local.fetchFiltersFromDB()
     }
-
+    
     func fetchFiltersFromDB() -> Filters {
         local.fetchFiltersFromDB()
     }
-
+    
     // MARK: - SYNC
     func syncFromServer() async {
         let lastSeq = UserDefaults.standard.integer(forKey: "sync_seq")
-
+        
         do {
             let res = try await remote.sync(seq: lastSeq)
             let employees = res.data.employees.map { $0.toDomain() }
-
+            
             if lastSeq == 0 {
-                // 🔥 First launch: DB already populated via paginated API.
+                // First launch: DB already populated via paginated API.
                 // Just save the cursor — do NOT apply changes to avoid
                 // re-inserting everything and triggering observer flood.
-                print("⚠️ Bootstrap sync — skipping apply, saving seq only")
+                print("Bootstrap sync — skipping apply, saving seq only")
             } else if !employees.isEmpty {
-                // ✅ Incremental sync — batch update in a single CoreData save
+                //  Incremental sync — batch update in a single CoreData save
                 defer { SyncNotifier.shared.notify() }
                 local.batchUpdateFromServer(employees)
                 print(employees)
-                print("✅ Sync applied \(employees.count) changes")
+                print("Sync applied \(employees.count) changes")
                 
             } else {
-                print("✅ Sync — nothing new (seq: \(lastSeq))")
+                print("Sync — nothing new (seq: \(lastSeq))")
             }
-
+            
             // Always advance the cursor
             UserDefaults.standard.set(res.data.nextCursor.seq, forKey: "sync_seq")
-
+            
         } catch {
-            print("❌ Sync failed:", error)
+            print("Sync failed:", error)
         }
     }
     
     func fetchPendingSync() -> [Employee] {
         local.fetchPendingSync()
     }
-
+    
     func markSynced(_ id: String) {
         local.markSynced(id)
     }
-
+    
     func getSyncAction(for id: String) -> String {
         local.getSyncAction(for: id)
     }
-
+    
     func syncCreate(_ employee: Employee) async throws {
         try await remote.createEmployee(employee)
-
+        
     }
-
+    
     func syncUpdate(_ employee: Employee) async throws {
         try await remote.updateEmployee(employee)
     }
-
+    
     func syncDelete(_ id: String) async throws {
         try await remote.deleteEmployee(id)
     }
-
+    
     func loadUntilFilled(targetCount: Int) async -> [Employee] {
-
+        
         hasNext = true
         dbOffset = 0
         var visible = local.fetchNonDeleted(limit: limit, offset: dbOffset)
@@ -339,34 +337,33 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
             UserDefaults.standard.set(apiOffset, forKey: "api_offset")
         }
         while visible.count < targetCount && hasNext {
-
+            
             if network.isConnected {
                 do {
                     let res = try await remote.fetch(limit: limit, offset: apiOffset)
-
+                    
                     let domain = res.data.map { $0.toDomain() }
                     local.save(domain)
-
+                    
                     if apiOffset == 0 {
                         UserDefaults.standard.set(res.meta.latestUpdatedSeq, forKey: "sync_seq")
                     }
                     apiOffset += res.data.count
                     hasNext = res.meta.hasNextPage
                     UserDefaults.standard.set(apiOffset, forKey: "api_offset")
-
+                    
                 } catch {
-//                    break
+                    print("failed inside loadUntilFilled",error.localizedDescription)
                 }
             } else {
-//                break
+                
             }
-
+            
             visible = local.fetchNonDeleted(limit: limit, offset: 0)
         }
-
+        
         let result = Array(visible.prefix(targetCount))
         dbOffset = result.count   // only advance by what we actually show
-
         return result
     }
 }

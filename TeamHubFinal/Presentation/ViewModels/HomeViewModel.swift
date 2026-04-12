@@ -11,54 +11,51 @@ import Combine
 
 @MainActor
 final class HomeViewModel: ObservableObject {
-    private var currentLimit = 20
+    
+    @Published private(set) var employees: [Employee] = []
+    @Published private(set) var searchResults: [Employee] = []
+    
     @Published var allDesignations: [String] = []
     @Published var allDepartments: [String] = []
     @Published var allStatuses: [String] = []
-    @Published var showNewBanner = false
-    
-    private var searchOffset = 0
-    private let limit = 10
-    private var lastSearchQuery: String?
-    private(set) var isSearching = false
-    // MARK: - UI STATE
-    var hasLoadedInitially = false
-    private var isRefreshingTaskRunning = false
-    @Published var isRefreshing = false
-    private let  syncState: SyncState
-    private let syncManager: SyncManaging
-    @Published private(set) var employees: [Employee] = []
-    @Published private(set) var searchResults: [Employee] = []
-
-    @Published var searchQuery = ""
     
     @Published var selectedDesignations: Set<String> = []
     @Published var selectedDepartments: Set<String> = []
     @Published var selectedStatuses: Set<String> = []
+    @Published var searchQuery = ""
+    
     @Published var isPaginatingUI = false
     @Published var isLoading = false
+    @Published var isRefreshing = false
+
+    @Published var showNewBanner = false
+
+    private var searchOffset = 0
+    private let limit = 10
+    private var lastSearchQuery: String?
+    private(set) var isSearching = false
+    private var currentLimit = 20
+    
+    // MARK: - UI STATE
+    var hasLoadedInitially = false
+    private var isRefreshingTaskRunning = false
     
     private var isPaginating = false
     private(set) var initialSearchRequestDone = false
     private var observerId: UUID?
     private var reloadTask: Task<Void,Never>?
     private var searchTask: Task<Void,Never>?
-    var selectedFilters: SelectedFilters {
-        SelectedFilters(
-            designations: selectedDesignations,
-            departments: selectedDepartments,
-            statuses: selectedStatuses
-        )
-    }
+  
     
     let repo: EmployeeRepositoryProtocol
+    private let  syncState: SyncState
+    private let syncManager: SyncManaging
     private var cancellables = Set<AnyCancellable>()
     init(repo: EmployeeRepositoryProtocol,syncState: SyncState,  syncManager: SyncManaging) {
-        self.repo = repo
         
+        self.repo = repo
         self.syncState = syncState
         self.syncManager = syncManager
-
         
         observerId = SyncNotifier.shared.addObserver {
             [weak self] in
@@ -73,12 +70,16 @@ final class HomeViewModel: ObservableObject {
         }
     }
 
-//    var newEmployee:Int{
-//        if repo.a
-//    }
-    
-    // MARK: - COMPUTED
 
+    // MARK: - COMPUTED
+    var selectedFilters: SelectedFilters {
+        SelectedFilters(
+            designations: selectedDesignations,
+            departments: selectedDepartments,
+            statuses: selectedStatuses
+        )
+    }
+    
     var displayEmployees: [Employee] {
         isSearchingOrFiltering ? searchResults : employees
     }
@@ -91,10 +92,8 @@ final class HomeViewModel: ObservableObject {
     }
     
     func filters() async {
-
-        // ✅ avoid refetch
+        //  avoid refetch
         if !allDesignations.isEmpty { return }
-
         let data = await repo.fetchFilters()
 
         allDesignations = data.designations
@@ -102,26 +101,8 @@ final class HomeViewModel: ObservableObject {
         allStatuses = data.statuses
     }
     
-    func handleSearch(query: String) {
-        isLoading = true
-        defer {
-            isLoading = false
-//            initialSearchRequestDone = true
-        }
-        searchTask?.cancel()
-        
-        searchTask = Task {
-            
-            try? await Task.sleep(nanoseconds: 900_000_000)
-            
-            guard !Task.isCancelled else { return }
-            
-            await performSearch()
-        }
-    }
-    
+   
     // MARK: - LOAD
-
     func loadInitial() async {
         guard !hasLoadedInitially else { return }
         hasLoadedInitially = true
@@ -129,7 +110,6 @@ final class HomeViewModel: ObservableObject {
         defer {
             isLoading = false
             initialSearchRequestDone = false
-//            searchResults = []
         }
         let data = await repo.loadUntilFilled(targetCount: 10)
         
@@ -137,8 +117,7 @@ final class HomeViewModel: ObservableObject {
            await syncManager.startAutoSync()
         }
         currentLimit = 20
-        employees = data                         // single authoritative write
-//        isLoading = false                        // guard released; observer takes over
+        employees = data
     }
 
     func loadMore() async {
@@ -147,11 +126,9 @@ final class HomeViewModel: ObservableObject {
         isPaginatingUI = true
         
         let data = await repo.loadMore()
-        
-        //        if !data.isEmpty {
+
         employees.append(contentsOf: data)
-        //        }
-        
+
         isPaginating = false
         isPaginatingUI = false
     }
@@ -162,11 +139,9 @@ final class HomeViewModel: ObservableObject {
         isRefreshingTaskRunning = true
         isLoading = true
         syncState.isRefreshing = true
-//        syncManager.stopAutoSync()
         
         defer {
             syncState.isRefreshing = false
-//            syncManager.startAutoSync()
             isLoading = false
             isRefreshingTaskRunning = false
         }
@@ -180,14 +155,27 @@ final class HomeViewModel: ObservableObject {
             await loadInitial()
         }
         
-        
-//        currentLimit = 20
-//        employees = data
-        
     }
 
     // MARK: - SEARCH (UNIFIED)
+    
+    func handleSearch(query: String) {
+        isLoading = true
+        defer {
+            isLoading = false
+        }
+        searchTask?.cancel()
 
+        searchTask = Task {
+            
+            try? await Task.sleep(nanoseconds: 900_000_000)
+            
+            guard !Task.isCancelled else { return }
+            
+            await performSearch()
+        }
+    }
+    
     func performSearch() async {
         
         let result = await repo.searchNFilter(
@@ -196,9 +184,9 @@ final class HomeViewModel: ObservableObject {
             departments: Array(selectedDepartments),
             statuses: Array(selectedStatuses)
         )
-        
         searchResults = result.filter { $0.deletedAt == nil }
     }
+    
     func performSearchLoadMore() async {
         guard !isPaginating else { return }
         isPaginating = true
@@ -210,21 +198,19 @@ final class HomeViewModel: ObservableObject {
             departments: Array(selectedDepartments),
             statuses: Array(selectedStatuses)
         )
-//        if result.isEmpty {
-//            searchResults = []
-//        }
+
         searchResults.append(contentsOf: result.filter { $0.deletedAt == nil })
         
         isPaginating = false
         isPaginatingUI = false
     }
+    
     // MARK: - CRUD (INSTANT UI UPDATE)
-
     func addEmployee(_ emp: Employee) {
 
         repo.addEmployee(emp)
 
-        // 🔥 instant UI
+        // instant UI
         employees.insert(emp, at: 0)
     }
 

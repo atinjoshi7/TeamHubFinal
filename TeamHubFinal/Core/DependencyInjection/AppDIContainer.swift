@@ -8,9 +8,6 @@
 import Foundation
 import Combine
 import SwiftUI
-final class SyncState: ObservableObject {
-    @Published var isRefreshing: Bool = false
-}
 
 final class AppDIContainer{
     let syncState = SyncState()

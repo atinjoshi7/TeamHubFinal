@@ -6,6 +6,11 @@
 //
 
 import Foundation
+import Combine
+
+final class SyncState: ObservableObject {
+    @Published var isRefreshing: Bool = false
+}
 
 protocol SyncManaging {
     func start()
@@ -24,6 +29,7 @@ final class SyncManager: SyncManaging {
     private var isSyncing = false
     private var syncTimer: Timer?
     private(set) var syncRunning = false
+    
     init(repo: EmployeeRepositoryProtocol,
          network: NetworkMonitoring,syncState:SyncState) {
         self.repo = repo
@@ -32,7 +38,6 @@ final class SyncManager: SyncManaging {
     }
 
     // Start observing network
-    
     func start() {
         print("SyncManager started")
 

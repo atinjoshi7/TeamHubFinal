@@ -48,14 +48,16 @@ final class HomeViewModel: ObservableObject {
   
     
     let repo: EmployeeRepositoryProtocol
+    let network: NetworkMonitor
     private let  syncState: SyncState
     private let syncManager: SyncManaging
     private var cancellables = Set<AnyCancellable>()
-    init(repo: EmployeeRepositoryProtocol,syncState: SyncState,  syncManager: SyncManaging) {
+    init(repo: EmployeeRepositoryProtocol,syncState: SyncState,  syncManager: SyncManaging,network:NetworkMonitor) {
         
         self.repo = repo
         self.syncState = syncState
         self.syncManager = syncManager
+        self.network = network
         
         observerId = SyncNotifier.shared.addObserver {
             [weak self] in
@@ -138,10 +140,8 @@ final class HomeViewModel: ObservableObject {
         guard !isRefreshingTaskRunning else { return }
         isRefreshingTaskRunning = true
         isLoading = true
-        syncState.isRefreshing = true
         
         defer {
-            syncState.isRefreshing = false
             isLoading = false
             isRefreshingTaskRunning = false
         }
@@ -212,6 +212,9 @@ final class HomeViewModel: ObservableObject {
 
         // instant UI
         employees.insert(emp, at: 0)
+        Task{
+           await  syncManager.pushLocalChanges()
+        }
     }
 
     func updateEmployee(_ emp: Employee) {
@@ -220,6 +223,9 @@ final class HomeViewModel: ObservableObject {
 
         if let i = employees.firstIndex(where: { $0.id == emp.id }) {
             employees[i] = emp
+        }
+        Task{
+           await syncManager.pushLocalChanges()
         }
     }
 
@@ -231,5 +237,8 @@ final class HomeViewModel: ObservableObject {
         }
 
         employees.remove(atOffsets: offsets)
+        Task{
+          await  syncManager.pushLocalChanges()
+        }
     }
 }

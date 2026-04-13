@@ -82,8 +82,7 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
         let result = (try? ctx.fetch(req))?.map { $0.toDomain() } ?? []
         return result
     }
-    
-    
+
     func batchUpdateFromServer(_ employees: [Employee]) {
         let ctx = stack.viewContext
         
@@ -399,9 +398,7 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
         //  SEARCH SUPPORT
         if let search, !search.isEmpty {
             predicates.append(NSPredicate(
-                format: "name CONTAINS[cd] %@ OR designation CONTAINS[cd] %@ OR department CONTAINS[cd] %@",
-                search, search, search
-            ))
+                format: "name CONTAINS[cd] %@ ",search))
         }
         
         if !designations.isEmpty {
@@ -495,6 +492,7 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
 
         stack.save(context: ctx)
     }
+    
     func fetchPendingSync() -> [Employee] {
 
         let req: NSFetchRequest<EmployeeEntity> = EmployeeEntity.fetchRequest()
@@ -503,6 +501,7 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
 
         return (try? stack.viewContext.fetch(req))?.map { $0.toDomain() } ?? []
     }
+    
     func markSynced(_ id: String) {
 
         let req: NSFetchRequest<EmployeeEntity> = EmployeeEntity.fetchRequest()
@@ -515,6 +514,7 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
 
         stack.save(context: stack.viewContext)
     }
+    
     func getSyncAction(for id: String) -> String {
 
         let req: NSFetchRequest<EmployeeEntity> = EmployeeEntity.fetchRequest()

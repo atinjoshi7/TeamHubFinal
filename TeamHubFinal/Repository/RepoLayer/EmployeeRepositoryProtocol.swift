@@ -143,6 +143,9 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
         // After API → fetch again from DB
         let newData = local.fetchNonDeleted(limit: limit, offset: dbOffset)
         
+        if !network.isConnected && newData.isEmpty{
+            return []
+        }
         if newData.isEmpty {
             return await self.loadMore()
         }
@@ -209,6 +212,7 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
             statuses: statuses
         )
     }
+    
     func searchNFilterLoadMore(
         query: String?,
         designations: [String],
@@ -242,6 +246,7 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
             } catch {
                 print("API search fail → fallback DB")
             }
+            
         }
         return []
     }
@@ -249,14 +254,17 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
     
     func addEmployee(_ employee: Employee) {
         local.add(employee)
+        
     }
     
     func updateEmployee(_ employee: Employee) {
         local.update(employee)
+        
     }
     
     func deleteEmployee(_ id: String) {
         local.delete(id)
+        
     }
     
     // MARK: - FILTERS

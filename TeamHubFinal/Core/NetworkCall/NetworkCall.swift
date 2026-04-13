@@ -6,6 +6,7 @@
 //
 
 import Foundation
+
 protocol APIClient {
     func request<T: Decodable>(_ endpoint: APIEndpoint) async throws -> T
 }
@@ -48,3 +49,6 @@ final class URLSessionAPIClient: APIClient {
 
 //  For DELETE responses
 struct EmptyResponse: Decodable {}
+struct DuplicateResponse: Decodable{
+    let message: String
+}

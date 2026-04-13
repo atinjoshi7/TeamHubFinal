@@ -25,6 +25,12 @@ final class AppDIContainer{
     private lazy var local: EmployeeLocalDataSourceProtocol =
     EmployeeLocalDataSource(stack: core)
     
+    lazy var syncManager: SyncManaging = SyncManager(
+        repo: repo,
+        network: network,
+        syncState: syncState
+    )
+    
     private lazy var repo: EmployeeRepositoryProtocol =
     EmployeeRepository(remote: remote, local: local, network: network as! NetworkMonitor)
     
@@ -33,16 +39,13 @@ final class AppDIContainer{
             vm: HomeViewModel(
                 repo: repo,
                 syncState: syncState,
-                syncManager: syncManager
+                syncManager: syncManager,
+                network: network as! NetworkMonitor
             )
         )
     }
     
     
-    lazy var syncManager: SyncManaging = SyncManager(
-        repo: repo,
-        network: network,
-        syncState: syncState  
-    )
+  
     
 }

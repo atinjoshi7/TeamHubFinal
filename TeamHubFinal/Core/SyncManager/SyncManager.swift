@@ -19,6 +19,7 @@ protocol SyncManaging {
     func stopAutoSync()
     func syncFromServer() async
     var syncRunning: Bool { get }
+    func pushLocalChanges() async
 }
 
 final class SyncManager: SyncManaging {
@@ -67,9 +68,6 @@ final class SyncManager: SyncManaging {
 
         isSyncing = true
 
-        // 1. Push local
-        await pushLocalChanges()
-
         // 2. Pull from server
         await repo.syncFromServer()
 
@@ -108,7 +106,7 @@ final class SyncManager: SyncManaging {
 }
 extension SyncManager {
 
-    private func pushLocalChanges() async {
+     func pushLocalChanges() async {
 
         let pending = repo.fetchPendingSync()
 

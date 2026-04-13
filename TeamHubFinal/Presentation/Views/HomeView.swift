@@ -21,6 +21,10 @@ struct HomeView: View {
 
     @FocusState private var isFocused: Bool
 
+    @State private var showBanner = false
+    @State private var showOnlineBanner = false
+    @State private var previousConnection: Bool = true
+    
     init(vm: HomeViewModel) {
         _vm = StateObject(wrappedValue: vm)
     }
@@ -30,6 +34,18 @@ struct HomeView: View {
         NavigationStack(path: $path) {
 
             VStack(spacing: 0) {
+
+                // Banner FIRST (top-most)
+                if showBanner {
+                        HStack {
+                            Spacer()
+                            InternetBannerView()
+                            Spacer()
+                        }
+                        .padding(.top, 8)
+                        .padding(.bottom, 4)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                    }
 
                 // SEARCH + THEME
                 HStack {
@@ -56,6 +72,7 @@ struct HomeView: View {
 
                 contentView
             }
+           
             .navigationTitle("Employees")
 
             //  Navigation
@@ -130,11 +147,35 @@ struct HomeView: View {
                     vm.selectedDesignations = designations
                     vm.selectedDepartments = departments
                     vm.selectedStatuses = statuses
-
+                    
                     Task {
                         await vm.performSearch()
                     }
                 }
+            }
+            .onChange(of: network.isConnected) { _, isConnected in
+
+                // Case 1: Went OFFLINE
+                if !isConnected {
+                    showBanner = true
+                    showOnlineBanner = false
+                }
+
+                // Case 2: Came ONLINE from OFFLINE
+                else if previousConnection == false && isConnected {
+                    showBanner = true
+                    showOnlineBanner = true
+                    Task {
+                            await vm.performSearch()
+                        }
+                    
+                    // Hide after very short time (1 ms = 0.001 sec)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
+                        showBanner = false
+                    }
+                }
+                
+                previousConnection = isConnected
             }
         }
     }

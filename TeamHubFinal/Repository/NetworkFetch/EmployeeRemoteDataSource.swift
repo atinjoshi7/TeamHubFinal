@@ -7,9 +7,13 @@
 
 import Foundation
 protocol EmployeeRemoteDataSourceProtocol {
+    
     func fetch(limit: Int, offset: Int) async throws -> EmployeesResponseDTO
+    
     func search(limit: Int, offset: Int, query: String) async throws -> [EmployeeDTO]
+    
     func fetchFilters() async throws -> FiltersResponseDTO
+    
     func fetchSearchNFilteredEmployees(
         limit: Int,
         offset: Int,
@@ -18,6 +22,7 @@ protocol EmployeeRemoteDataSourceProtocol {
         departments: [String],
         statuses: [String]
     ) async throws -> EmployeesResponseDTO
+    
     func createEmployee(_ employee: Employee) async throws
     func updateEmployee(_ employee: Employee) async throws
     func deleteEmployee(_ id: String) async throws

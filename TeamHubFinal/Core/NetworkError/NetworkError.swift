@@ -10,4 +10,5 @@ enum NetworkError: Error {
     case invalidURL
     case server
     case decoding
+    case duplicateError(message: String)
 }

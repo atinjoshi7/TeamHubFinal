@@ -21,15 +21,18 @@ final class SyncManager: SyncManaging {
 
     private let repo: EmployeeRepositoryProtocol
     private var network: NetworkMonitoring
+    private let syncErrorStore: SyncErrorStore
     private var isSyncing = false
     private var syncTimer: Timer?
     private(set) var syncRunning = false
     private var hasStartedObserving = false
     
     init(repo: EmployeeRepositoryProtocol,
-         network: NetworkMonitoring) {
+         network: NetworkMonitoring,
+         syncErrorStore: SyncErrorStore) {
         self.repo = repo
         self.network = network
+        self.syncErrorStore = syncErrorStore
     }
 
     // Start observing network
@@ -59,7 +62,7 @@ final class SyncManager: SyncManaging {
 
     // Manual trigger
     func syncNow() async {
-        await runSyncCycle(pushLocalOnly: false)
+        await runSyncCycle(pushPendingLocals: true, syncFromServer: true)
     }
     
     
@@ -83,33 +86,27 @@ final class SyncManager: SyncManaging {
     }
     
     func syncFromServer() async {
-
-        guard !isSyncing else { return }
-        isSyncing = true
-
-        defer { isSyncing = false }
-
-        // your sync logic
-        // startAutoSync()
-        await repo.syncFromServer()
+        await runSyncCycle(pushPendingLocals: false, syncFromServer: true)
     }
 }
 extension SyncManager {
 
      func pushLocalChanges() async {
-        await runSyncCycle(pushLocalOnly: true)
+        await runSyncCycle(pushPendingLocals: true, syncFromServer: true)
     }
 
-    private func runSyncCycle(pushLocalOnly: Bool) async {
+    private func runSyncCycle(pushPendingLocals: Bool, syncFromServer shouldSyncFromServer: Bool) async {
         guard network.isConnected else { return }
         guard !isSyncing else { return }
 
         isSyncing = true
         defer { isSyncing = false }
 
-        await pushPendingLocalChanges()
+        if pushPendingLocals {
+            await pushPendingLocalChanges()
+        }
 
-        guard !pushLocalOnly else { return }
+        guard shouldSyncFromServer else { return }
         await repo.syncFromServer()
     }
 
@@ -142,11 +139,18 @@ extension SyncManager {
                 }
 
                 repo.markSynced(employee.id)
+                syncErrorStore.clearError(for: employee.id)
 
                 print("Synced: \(employee.id)")
 
+            } catch let error as NetworkError {
+                let message = "Sync failed: \(error.message)"
+                syncErrorStore.setError(message, for: employee.id)
+                print("Cannot sync \(employee.name):", message)
             } catch {
-                print("Sync failed for \(employee.id): \(error)")
+                let message = "Sync failed: \(error.localizedDescription)"
+                syncErrorStore.setError(message, for: employee.id)
+                print("Sync failed for \(employee.id): \(message)")
             }
         }
     }

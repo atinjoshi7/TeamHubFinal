@@ -28,4 +28,3 @@ struct Employee: Identifiable, Equatable, Hashable{
     let createdAt: Date?   // ✅ ADD THIS
     let deletedAt: Date?
 }
-

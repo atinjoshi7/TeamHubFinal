@@ -200,6 +200,10 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
             let entity: EmployeeEntity
 
             if let existing {
+                if existing.needSync {
+                    print("Skipping server save due to local pending changes:", emp.id)
+                    return
+                }
                 // UPDATE
                 entity = existing
                 print(" Updating employee: \(emp.id)")
@@ -434,8 +438,7 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
     ) -> [Employee] {
 
         let req: NSFetchRequest<EmployeeEntity> = EmployeeEntity.fetchRequest()
-        req.predicate = NSPredicate(format: "deletedAt == nil")
-        var predicates: [NSPredicate] = []
+        var predicates: [NSPredicate] = [NSPredicate(format: "deletedAt == nil")]
 
 
         //  SEARCH SUPPORT
@@ -554,6 +557,7 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
 
         entity.needSync = false
         entity.syncAction = "none"
+        entity.updatedAt = Date()
 
         stack.save(context: stack.viewContext)
     }

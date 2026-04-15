@@ -14,6 +14,7 @@ struct TeamHubFinalApp: App {
     let container = AppDIContainer()
     @StateObject private var network = NetworkMonitor()
     @StateObject private var themeManager = ThemeManager()
+    @StateObject private var syncErrors = SyncErrorStore.shared
    
 
     var body: some Scene {
@@ -21,6 +22,7 @@ struct TeamHubFinalApp: App {
             container.makeHome()
                 .environmentObject(network)
                 .environmentObject(themeManager)
+                .environmentObject(syncErrors)
                 .preferredColorScheme(themeManager.colorScheme)
                 
                 

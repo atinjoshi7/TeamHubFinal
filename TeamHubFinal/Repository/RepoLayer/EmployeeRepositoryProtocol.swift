@@ -193,6 +193,10 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
         
         if network.isConnected{
             await local.clearAllExceptPendingSync()
+            apiOffset = 0
+            dbOffset = 0
+            hasNext = true
+            UserDefaults.standard.set(apiOffset, forKey: "api_offset")
         }
         
     }
@@ -327,8 +331,13 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
                 print("Bootstrap sync — skipping apply, saving seq only")
             } else if !employees.isEmpty {
                 //  Incremental sync — batch update in a single CoreData save
-                defer { SyncNotifier.shared.notify() }
+                defer {
+                    SyncNotifier.shared.notify()
+                }
                 local.batchUpdateFromServer(employees)
+                for employee in employees {
+                    SyncNotifier.shared.notifyEmployeeUpdate(employee)
+                }
                 print(employees)
                 print("Sync applied \(employees.count) changes")
                 
@@ -375,7 +384,7 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
         dbOffset = 0
         var visible = local.fetchNonDeleted(limit: targetCount, offset: dbOffset)
         
-        if visible.isEmpty {
+        if visible.count < targetCount {
             apiOffset = 0
             UserDefaults.standard.set(apiOffset, forKey: "api_offset")
         }

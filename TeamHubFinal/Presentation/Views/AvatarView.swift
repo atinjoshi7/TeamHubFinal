@@ -12,7 +12,7 @@ struct AvatarView: View {
     let url: URL?
     let initials: String
 
-    let size: CGFloat 
+    let size: CGFloat
 
     var body: some View {
         ZStack {

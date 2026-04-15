@@ -9,6 +9,7 @@ import SwiftUI
 import Kingfisher
 struct EmployeeRowView: View {
     let employee: Employee
+    let hasSyncError: Bool
    
     var body: some View {
         HStack(spacing: 12) {
@@ -28,6 +29,15 @@ struct EmployeeRowView: View {
                 Text(employee.isActive ? "Active" : "Inactive")
                     .font(.caption)
                     .foregroundColor(employee.isActive ? .green : .red)
+            }
+
+            Spacer(minLength: 8)
+
+            if hasSyncError {
+                Circle()
+                    .fill(Color.red)
+                    .frame(width: 10, height: 10)
+                    .accessibilityLabel("Sync error")
             }
         }
         .padding(.vertical, 6)

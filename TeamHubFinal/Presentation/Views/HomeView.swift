@@ -11,6 +11,7 @@ struct HomeView: View {
     
     @EnvironmentObject private var network: NetworkMonitor
     @EnvironmentObject private var theme: ThemeManager
+    @EnvironmentObject private var syncErrors: SyncErrorStore
 
     @StateObject private var vm: HomeViewModel
     @State private var path = NavigationPath()
@@ -232,7 +233,10 @@ extension HomeView {
 
             ForEach(vm.displayEmployees, id: \.id) { employee in
 
-                EmployeeRowView(employee: employee)
+                EmployeeRowView(
+                    employee: employee,
+                    hasSyncError: syncErrors.hasError(for: employee.id)
+                )
                     .id(employee.id)
                     .onAppear {
                         vm.loadMoreIfNeeded(currentEmployee: employee)

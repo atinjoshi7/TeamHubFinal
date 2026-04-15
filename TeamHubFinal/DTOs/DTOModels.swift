@@ -128,7 +128,7 @@ extension EmployeeDTO {
                     number: $0.number ?? ""
                 )
             } ?? [],
-            createdAt: formatter.date(from: createdAt ?? ""),   // ✅
+            createdAt: formatter.date(from: createdAt ?? ""),   //
             deletedAt: formatter.date(from: deletedAt ?? "")
         )
     }
@@ -169,4 +169,9 @@ extension SyncResponseDTO {
     var hasMore: Bool {
         data.hasMore
     }
+}
+
+struct BaseResponseDTO: Decodable {
+    let status: String
+    let message: String
 }

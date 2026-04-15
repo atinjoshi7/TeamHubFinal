@@ -45,9 +45,9 @@ final class CoreDataStack: CoreDataStacking {
 
         do {
             try context.save()
-            print("💾 CoreData saved")
+            print(" CoreData saved")
         } catch {
-            print("❌ CoreData save error:", error)
+            print("CoreData save error:", error)
         }
     }
 

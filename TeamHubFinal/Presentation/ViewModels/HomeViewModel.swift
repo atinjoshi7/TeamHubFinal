@@ -46,29 +46,64 @@ final class HomeViewModel: ObservableObject {
     private var reloadTask: Task<Void,Never>?
     private var searchTask: Task<Void,Never>?
     private var loadingRequestCount = 0
+    private var updateObserverId: UUID?
   
     
     let repo: EmployeeRepositoryProtocol
     let network: NetworkMonitor
     private let syncManager: SyncManaging
+    private let syncErrorStore: SyncErrorStore
     private var cancellables = Set<AnyCancellable>()
-    init(repo: EmployeeRepositoryProtocol, syncManager: SyncManaging,network:NetworkMonitor) {
+    init(repo: EmployeeRepositoryProtocol,
+         syncManager: SyncManaging,
+         network: NetworkMonitor,
+         syncErrorStore: SyncErrorStore) {
         
         self.repo = repo
         self.syncManager = syncManager
         self.network = network
+        self.syncErrorStore = syncErrorStore
         
-        observerId = SyncNotifier.shared.addObserver {
-            [weak self] in
-            self?.reloadTask?.cancel()
-            self?.reloadTask = Task{
-                try? await Task.sleep(nanoseconds: 300_000_000)
-                print("Gonna initial load-----")
-                self?.hasLoadedInitially = false
-               await self?.loadInitial()
+//        observerId = SyncNotifier.shared.addObserver {
+//            [weak self] in
+//            self?.reloadTask?.cancel()
+//            self?.reloadTask = Task{
+//                try? await Task.sleep(nanoseconds: 300_000_000)
+//                print("Gonna initial load-----")
+//                self?.hasLoadedInitially = false
+//               await self?.loadInitial()
+//
+//            }
+//        }
+        updateObserverId = SyncNotifier.shared
+            .addUpdateDisplayedEmployeesObserver { [weak self] employee in
                 
+                Task { @MainActor in
+                    guard let self else { return }
+                    guard let _ = self.employees.first else { return }
+                    
+                    if employee.deletedAt != nil {
+                        if let index = self.employees.firstIndex(where: { $0.id == employee.id }) {
+                            withAnimation(.easeInOut) {
+                                self.employees.remove(at: index)
+                            }
+                        }
+                    } else if let index = self.employees.firstIndex(where: { $0.id.lowercased() == employee.id.lowercased() }) {
+                        // UPDATE
+                        self.employees[index] = employee
+                    } else {
+                        if employee.createdAt! > (self.employees.first?.createdAt)! {
+                            withAnimation(.easeInOut) {
+                                self.employees.insert(employee, at: 0)
+                            }
+                        }
+                        
+                    }
+                    
+                    
+                }
             }
-        }
+        
     }
 
 
@@ -245,6 +280,7 @@ final class HomeViewModel: ObservableObject {
     func addEmployee(_ emp: Employee) {
 
         repo.addEmployee(emp)
+        syncErrorStore.clearError(for: emp.id)
 
         // instant UI
         employees.insert(emp, at: 0)
@@ -256,6 +292,7 @@ final class HomeViewModel: ObservableObject {
     func updateEmployee(_ emp: Employee) {
 
         repo.updateEmployee(emp)
+        syncErrorStore.clearError(for: emp.id)
 
         if let i = employees.firstIndex(where: { $0.id == emp.id }) {
             employees[i] = emp
@@ -269,6 +306,7 @@ final class HomeViewModel: ObservableObject {
 
         offsets.forEach {
             let emp = employees[$0]
+            syncErrorStore.clearError(for: emp.id)
             repo.deleteEmployee(emp.id)
         }
 

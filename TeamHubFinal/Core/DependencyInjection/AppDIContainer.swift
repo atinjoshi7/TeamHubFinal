@@ -13,6 +13,7 @@ final class AppDIContainer{
     private lazy var api: APIClient = URLSessionAPIClient()
     
     private lazy var core: CoreDataStacking = CoreDataStack.shared
+    private let syncErrorStore = SyncErrorStore.shared
     
     private lazy var remote: EmployeeRemoteDataSourceProtocol =
     EmployeeRemoteDataSource(api: api)
@@ -26,7 +27,8 @@ final class AppDIContainer{
     
     lazy var syncManager: SyncManaging = SyncManager(
         repo: repo,
-        network: network
+        network: network,
+        syncErrorStore: syncErrorStore
     )
     
     private lazy var repo: EmployeeRepositoryProtocol =
@@ -37,12 +39,10 @@ final class AppDIContainer{
             vm: HomeViewModel(
                 repo: repo,
                 syncManager: syncManager,
-                network: network as! NetworkMonitor
+                network: network as! NetworkMonitor,
+                syncErrorStore: syncErrorStore
             )
         )
     }
-    
-    
-  
-    
+
 }

@@ -9,6 +9,7 @@ import SwiftUI
 import Combine
 struct EmployeeDetailView: View {
 
+    @EnvironmentObject private var syncErrors: SyncErrorStore
     @StateObject private var vm: EmployeeDetailViewModel
     let onUpdate: (Employee) -> Void
 
@@ -70,6 +71,17 @@ struct EmployeeDetailView: View {
             } header: {
                 Text("Employee Details")
             }
+
+            if let syncError = syncErrors.message(for: vm.employee.id) {
+                Section {
+                    Text(syncError)
+                        .foregroundColor(.red)
+                        .font(.subheadline)
+                } header: {
+                    Text("Sync Error")
+                        .foregroundColor(.red)
+                }
+            }
         }
         .listStyle(.insetGrouped)
         .navigationTitle("Details")
@@ -109,4 +121,3 @@ struct EmployeeDetailView: View {
         vm.setEmployee(updated)
     }
 }
-

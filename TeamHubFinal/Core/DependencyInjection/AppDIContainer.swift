@@ -10,7 +10,6 @@ import Combine
 import SwiftUI
 
 final class AppDIContainer{
-    let syncState = SyncState()
     private lazy var api: APIClient = URLSessionAPIClient()
     
     private lazy var core: CoreDataStacking = CoreDataStack.shared
@@ -27,8 +26,7 @@ final class AppDIContainer{
     
     lazy var syncManager: SyncManaging = SyncManager(
         repo: repo,
-        network: network,
-        syncState: syncState
+        network: network
     )
     
     private lazy var repo: EmployeeRepositoryProtocol =
@@ -38,7 +36,6 @@ final class AppDIContainer{
         HomeView(
             vm: HomeViewModel(
                 repo: repo,
-                syncState: syncState,
                 syncManager: syncManager,
                 network: network as! NetworkMonitor
             )

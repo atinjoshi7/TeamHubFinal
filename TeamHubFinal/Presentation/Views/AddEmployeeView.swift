@@ -36,6 +36,13 @@ struct AddEmployeeView: View {
     @State private var countryError: String?
     @State private var phoneErrors: [String: String] = [:]
 
+    private var hasChanges: Bool{
+        if name != "" && email != "" && city != "" &&  country != "" {
+            return true
+        }else{
+            return false
+        }
+    }
     var body: some View {
         NavigationStack {
             Form {
@@ -134,7 +141,6 @@ struct AddEmployeeView: View {
 
                 // MARK: - Phones
                 Section("Phones") {
-
                     ForEach($phones) { $phone in
                         VStack(alignment: .leading) {
 
@@ -182,6 +188,7 @@ struct AddEmployeeView: View {
                     Button("Done") {
                         save()
                     }
+                    .disabled(!hasChanges)
                 }
             }
         }

@@ -49,13 +49,11 @@ final class HomeViewModel: ObservableObject {
     
     let repo: EmployeeRepositoryProtocol
     let network: NetworkMonitor
-    private let  syncState: SyncState
     private let syncManager: SyncManaging
     private var cancellables = Set<AnyCancellable>()
-    init(repo: EmployeeRepositoryProtocol,syncState: SyncState,  syncManager: SyncManaging,network:NetworkMonitor) {
+    init(repo: EmployeeRepositoryProtocol, syncManager: SyncManaging,network:NetworkMonitor) {
         
         self.repo = repo
-        self.syncState = syncState
         self.syncManager = syncManager
         self.network = network
         

@@ -7,11 +7,6 @@
 
 import Foundation
 import Combine
-
-final class SyncState: ObservableObject {
-    @Published var isRefreshing: Bool = false
-}
-
 protocol SyncManaging {
     func start()
     func syncNow() async
@@ -26,16 +21,14 @@ final class SyncManager: SyncManaging {
 
     private let repo: EmployeeRepositoryProtocol
     private var network: NetworkMonitoring
-    private let syncState: SyncState
     private var isSyncing = false
     private var syncTimer: Timer?
     private(set) var syncRunning = false
     
     init(repo: EmployeeRepositoryProtocol,
-         network: NetworkMonitoring,syncState:SyncState) {
+         network: NetworkMonitoring) {
         self.repo = repo
         self.network = network
-        self.syncState = syncState
     }
 
     // Start observing network
@@ -92,6 +85,7 @@ final class SyncManager: SyncManaging {
         syncTimer?.invalidate()
         syncTimer = nil
     }
+    
     func syncFromServer() async {
 
         guard !isSyncing else { return }
@@ -100,7 +94,7 @@ final class SyncManager: SyncManaging {
         defer { isSyncing = false }
 
         // your sync logic
-//        startAutoSync()
+        // startAutoSync()
         await repo.syncFromServer()
     }
 }

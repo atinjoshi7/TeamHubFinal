@@ -34,19 +34,7 @@ struct HomeView: View {
         NavigationStack(path: $path) {
 
             VStack(spacing: 0) {
-
-                // Banner FIRST (top-most)
-                if showBanner {
-                        HStack {
-                            Spacer()
-                            InternetBannerView()
-                            Spacer()
-                        }
-                        .padding(.top, 8)
-                        .padding(.bottom, 4)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                    }
-
+                
                 // SEARCH + THEME
                 HStack {
 
@@ -68,9 +56,19 @@ struct HomeView: View {
                             .background(Color(.systemGray6))
                             .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
-                }
+                }.padding(.horizontal)
 
                 contentView
+                    .overlay(alignment: .top) {
+                            if showBanner {
+                                InternetBannerView(isOnline: showOnlineBanner)
+                                    .padding(.top, 8)
+                                    .transition(.move(edge: .top).combined(with: .opacity))
+                                    .zIndex(1)
+                            }
+                        }
+                        .animation(.easeInOut(duration: 0.3), value: showBanner)
+              
             }
            
             .navigationTitle("Employees")
@@ -170,8 +168,10 @@ struct HomeView: View {
                         }
                     
                     // Hide after very short time (1 ms = 0.001 sec)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
-                        showBanner = false
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        withAnimation{
+                            showBanner = false
+                        }
                     }
                 }
                 
@@ -187,7 +187,7 @@ extension HomeView {
     private var contentView: some View {
 
         
-        if (vm.isLoading && vm.hasLoadedInitially) || (vm.isLoading && vm.displayEmployees.isEmpty){
+        if (vm.isLoading && vm.hasLoadedInitially && vm.displayEmployees.isEmpty){
             List {
                 ForEach(0..<10, id: \.self) { _ in
                     ShimmerRowView()
@@ -199,8 +199,7 @@ extension HomeView {
             .allowsHitTesting(false)
         }
         else {
-            
-            if !vm.isLoading && vm.displayEmployees.isEmpty {
+            if (!vm.isLoading && vm.displayEmployees.isEmpty) || (!vm.isLoading && vm.isSearchingOrFiltering && vm.displayEmployees.isEmpty) {
                 EmptyStateView()
             }
             else if vm.showNewBanner {

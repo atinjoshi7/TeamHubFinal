@@ -45,6 +45,7 @@ final class HomeViewModel: ObservableObject {
     private var observerId: UUID?
     private var reloadTask: Task<Void,Never>?
     private var searchTask: Task<Void,Never>?
+    private var loadingRequestCount = 0
   
     
     let repo: EmployeeRepositoryProtocol
@@ -90,6 +91,10 @@ final class HomeViewModel: ObservableObject {
         !selectedDepartments.isEmpty ||
         !selectedStatuses.isEmpty
     }
+
+    var shouldShowShimmer: Bool {
+        isLoading && !isPaginatingUI
+    }
     
     func filters() async {
         //  avoid refetch
@@ -106,12 +111,12 @@ final class HomeViewModel: ObservableObject {
     func loadInitial() async {
         guard !hasLoadedInitially else { return }
         hasLoadedInitially = true
-        isLoading = true// guard is now active
+        beginLoading()
         defer {
-            isLoading = false
+            endLoading()
             initialSearchRequestDone = false
         }
-        let data = await repo.loadUntilFilled(targetCount: 10)
+        let data = await repo.loadUntilFilled(targetCount: limit)
         
         if !syncManager.syncRunning {
            await syncManager.startAutoSync()
@@ -122,29 +127,30 @@ final class HomeViewModel: ObservableObject {
 
     func loadMore() async {
         guard !isPaginating else { return }
+        guard repo.canLoadMoreEmployees else { return }
         isPaginating = true
         isPaginatingUI = true
+        defer {
+            isPaginating = false
+            isPaginatingUI = false
+        }
         
         let data = await repo.loadMore()
-
-        employees.append(contentsOf: data)
-
-        isPaginating = false
-        isPaginatingUI = false
+        appendUnique(data, into: &employees)
     }
     
     func refresh() async {
         
         guard !isRefreshingTaskRunning else { return }
         isRefreshingTaskRunning = true
-        isLoading = true
+        beginLoading()
         
         defer {
-            isLoading = false
+            endLoading()
             isRefreshingTaskRunning = false
         }
         if isSearchingOrFiltering {
-            await performSearch()
+            await performSearch(showLoading: false)
         }
         else {
             await repo.refresh()
@@ -157,24 +163,38 @@ final class HomeViewModel: ObservableObject {
 
     // MARK: - SEARCH (UNIFIED)
     
-    func handleSearch(query: String) {
-        isLoading = true
-        defer {
-            isLoading = false
-        }
+    func handleSearch(query _: String) {
         searchTask?.cancel()
+        beginLoading()
 
         searchTask = Task {
-            
-            try? await Task.sleep(nanoseconds: 900_000_000)
-            
+            defer {
+                Task { @MainActor [weak self] in
+                    self?.endLoading()
+                }
+            }
+
+            do {
+                try await Task.sleep(nanoseconds: 900_000_000)
+            } catch {
+                return
+            }
+
             guard !Task.isCancelled else { return }
-            
-            await performSearch()
+
+            await performSearch(showLoading: false)
         }
     }
     
-    func performSearch() async {
+    func performSearch(showLoading: Bool = true) async {
+        if showLoading {
+            beginLoading()
+        }
+        defer {
+            if showLoading {
+                endLoading()
+            }
+        }
         
         let result = await repo.searchNFilter(
             query: searchQuery,
@@ -187,8 +207,13 @@ final class HomeViewModel: ObservableObject {
     
     func performSearchLoadMore() async {
         guard !isPaginating else { return }
+        guard repo.canLoadMoreSearchResults else { return }
         isPaginating = true
         isPaginatingUI = true
+        defer {
+            isPaginating = false
+            isPaginatingUI = false
+        }
         
         let result = await repo.searchNFilterLoadMore(
             query: searchQuery,
@@ -197,10 +222,23 @@ final class HomeViewModel: ObservableObject {
             statuses: Array(selectedStatuses)
         )
 
-        searchResults.append(contentsOf: result.filter { $0.deletedAt == nil })
-        
-        isPaginating = false
-        isPaginatingUI = false
+        appendUnique(result.filter { $0.deletedAt == nil }, into: &searchResults)
+    }
+
+    func loadMoreIfNeeded(currentEmployee employee: Employee) {
+        guard employee.id == displayEmployees.last?.id else { return }
+        guard !isPaginating else { return }
+        guard isSearchingOrFiltering ? repo.canLoadMoreSearchResults : repo.canLoadMoreEmployees else {
+            return
+        }
+
+        Task {
+            if isSearchingOrFiltering {
+                await performSearchLoadMore()
+            } else {
+                await loadMore()
+            }
+        }
     }
     
     // MARK: - CRUD (INSTANT UI UPDATE)
@@ -238,5 +276,37 @@ final class HomeViewModel: ObservableObject {
         Task{
           await  syncManager.pushLocalChanges()
         }
+    }
+
+    func emailExists(_ email: String, excludingEmployeeID: String? = nil) -> Bool {
+        repo.emailExists(email, excludingEmployeeID: excludingEmployeeID)
+    }
+
+    func homePhoneExists(_ number: String, excludingEmployeeID: String? = nil) -> Bool {
+        repo.homePhoneExists(number, excludingEmployeeID: excludingEmployeeID)
+    }
+
+    func ensureAutoSyncRunning() async {
+        if !syncManager.syncRunning {
+            await syncManager.startAutoSync()
+        }
+    }
+
+    private func appendUnique(_ newEmployees: [Employee], into list: inout [Employee]) {
+        guard !newEmployees.isEmpty else { return }
+
+        let existingIDs = Set(list.map(\.id))
+        let uniqueEmployees = newEmployees.filter { !existingIDs.contains($0.id) }
+        list.append(contentsOf: uniqueEmployees)
+    }
+
+    private func beginLoading() {
+        loadingRequestCount += 1
+        isLoading = true
+    }
+
+    private func endLoading() {
+        loadingRequestCount = max(loadingRequestCount - 1, 0)
+        isLoading = loadingRequestCount > 0
     }
 }

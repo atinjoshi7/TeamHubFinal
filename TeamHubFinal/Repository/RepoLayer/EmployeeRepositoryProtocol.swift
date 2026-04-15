@@ -56,6 +56,10 @@ protocol EmployeeRepositoryProtocol {
     ) async -> [Employee]
     func loadUntilFilled(targetCount: Int) async -> [Employee]
     func fetchFromDB(limit: Int) -> [Employee]
+    func emailExists(_ email: String, excludingEmployeeID: String?) -> Bool
+    func homePhoneExists(_ number: String, excludingEmployeeID: String?) -> Bool
+    var canLoadMoreEmployees: Bool { get }
+    var canLoadMoreSearchResults: Bool { get }
 }
 
 final class EmployeeRepository: EmployeeRepositoryProtocol {
@@ -67,7 +71,8 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
     
     private var apiOffset: Int = UserDefaults.standard.integer(forKey: "api_offset")
     private var dbOffset = 0
-    private let limit = 20
+    private let listPageSize = 10
+    private let searchPageSize = 20
     private var hasNext = true
     private var searchOffset = 0
     private var searchHasNext = true
@@ -79,10 +84,26 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
         self.local = local
         self.network = network
     }
+
+    var canLoadMoreEmployees: Bool {
+        !local.fetchNonDeleted(limit: 1, offset: dbOffset).isEmpty || (network.isConnected && hasNext)
+    }
+
+    var canLoadMoreSearchResults: Bool {
+        network.isConnected && searchHasNext
+    }
     
     
     func fetchFromDB(limit: Int) -> [Employee] {
         return local.fetchNonDeleted(limit: limit, offset: 0)
+    }
+
+    func emailExists(_ email: String, excludingEmployeeID: String?) -> Bool {
+        local.emailExists(email, excludingEmployeeID: excludingEmployeeID)
+    }
+
+    func homePhoneExists(_ number: String, excludingEmployeeID: String?) -> Bool {
+        local.homePhoneExists(number, excludingEmployeeID: excludingEmployeeID)
     }
     
     // MARK: - INITIAL
@@ -93,11 +114,11 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
         hasNext = true
         UserDefaults.standard.set(apiOffset, forKey: "api_offset")
         
-        let dbData = local.fetchNonDeleted(limit: limit, offset: 0)
+        let dbData = local.fetchNonDeleted(limit: listPageSize, offset: 0)
         
         if !dbData.isEmpty {
             
-            let initial = Array(dbData.prefix(limit))
+            let initial = Array(dbData.prefix(listPageSize))
             dbOffset = initial.count
             return initial
         }
@@ -110,7 +131,7 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
         print("dbOffset:", dbOffset, "apiOffset:", apiOffset)
         
         // STEP 1: Try DB first
-        let dbData = local.fetchNonDeleted(limit: limit, offset: dbOffset)
+        let dbData = local.fetchNonDeleted(limit: listPageSize, offset: dbOffset)
         
         if !dbData.isEmpty {
             dbOffset += dbData.count
@@ -122,37 +143,42 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
             return []
         }
         
-        if network.isConnected {
+        guard network.isConnected else {
+            return []
+        }
+
+        while hasNext {
             do {
                 print("API CALL → offset:", apiOffset)
                 
-                let res = try await remote.fetch(limit: limit, offset: apiOffset)
+                let res = try await remote.fetch(limit: listPageSize, offset: apiOffset)
                 
                 let domain = res.data.map { $0.toDomain() }
+
+                if domain.isEmpty {
+                    hasNext = false
+                    break
+                }
+
                 local.save(domain)
                 
                 apiOffset += res.data.count
                 hasNext = res.meta.hasNextPage
                 UserDefaults.standard.set(apiOffset, forKey: "api_offset")
+
+                let newData = local.fetchNonDeleted(limit: listPageSize, offset: dbOffset)
+                if !newData.isEmpty {
+                    dbOffset += newData.count
+                    return newData
+                }
                 
             } catch {
                 print("API fail:", error.localizedDescription)
+                break
             }
         }
-        
-        // After API → fetch again from DB
-        let newData = local.fetchNonDeleted(limit: limit, offset: dbOffset)
-        
-        if !network.isConnected && newData.isEmpty{
-            return []
-        }
-        if newData.isEmpty {
-            return await self.loadMore()
-        }
-        
-        dbOffset += newData.count
-        
-        return newData
+
+        return []
     }
     
     
@@ -186,7 +212,7 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
         if network.isConnected {
             do {
                 let res = try await remote.fetchSearchNFilteredEmployees(
-                    limit: 20,
+                    limit: searchPageSize,
                     offset: searchOffset,
                     search: query,
                     designations: designations,
@@ -225,24 +251,33 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
             
             guard searchHasNext else { return [] }
             do {
-                let res = try await remote.fetchSearchNFilteredEmployees(
-                    limit: 20,
-                    offset: searchOffset,
-                    search: query,
-                    designations: designations,
-                    departments: departments,
-                    statuses: statuses
-                )
-                searchOffset += res.data.count
-                searchHasNext = res.meta.hasNextPage
-                
-                let result = res.data
-                    .map { $0.toDomain() }
-                    .filter { $0.deletedAt == nil }
-                if result.isEmpty{
-                    return await searchNFilterLoadMore(query: query, designations: designations, departments: departments, statuses: statuses)
+                while searchHasNext {
+                    let res = try await remote.fetchSearchNFilteredEmployees(
+                        limit: searchPageSize,
+                        offset: searchOffset,
+                        search: query,
+                        designations: designations,
+                        departments: departments,
+                        statuses: statuses
+                    )
+                    searchOffset += res.data.count
+                    searchHasNext = res.meta.hasNextPage
+                    
+                    if res.data.isEmpty {
+                        searchHasNext = false
+                        return []
+                    }
+
+                    let result = res.data
+                        .map { $0.toDomain() }
+                        .filter { $0.deletedAt == nil }
+
+                    if !result.isEmpty {
+                        return result
+                    }
                 }
-                return result
+
+                return []
             } catch {
                 print("API search fail → fallback DB")
             }
@@ -338,40 +373,41 @@ final class EmployeeRepository: EmployeeRepositoryProtocol {
         
         hasNext = true
         dbOffset = 0
-        var visible = local.fetchNonDeleted(limit: limit, offset: dbOffset)
+        var visible = local.fetchNonDeleted(limit: targetCount, offset: dbOffset)
         
         if visible.isEmpty {
             apiOffset = 0
             UserDefaults.standard.set(apiOffset, forKey: "api_offset")
         }
-        while visible.count < targetCount && hasNext {
+        while visible.count < targetCount && hasNext && network.isConnected {
             
-            if network.isConnected {
-                do {
-                    let res = try await remote.fetch(limit: limit, offset: apiOffset)
-                    
-                    let domain = res.data.map { $0.toDomain() }
-                    local.save(domain)
-                    
-                    if apiOffset == 0 {
-                        UserDefaults.standard.set(res.meta.latestUpdatedSeq, forKey: "sync_seq")
-                    }
-                    apiOffset += res.data.count
-                    hasNext = res.meta.hasNextPage
-                    UserDefaults.standard.set(apiOffset, forKey: "api_offset")
-                    
-                } catch {
-                    print("failed inside loadUntilFilled",error.localizedDescription)
-                }
-            } else {
+            do {
+                let res = try await remote.fetch(limit: listPageSize, offset: apiOffset)
                 
+                let domain = res.data.map { $0.toDomain() }
+                if domain.isEmpty {
+                    hasNext = false
+                    break
+                }
+
+                local.save(domain)
+                
+                if apiOffset == 0 {
+                    UserDefaults.standard.set(res.meta.latestUpdatedSeq, forKey: "sync_seq")
+                }
+                apiOffset += res.data.count
+                hasNext = res.meta.hasNextPage
+                UserDefaults.standard.set(apiOffset, forKey: "api_offset")
+                
+            } catch {
+                print("failed inside loadUntilFilled",error.localizedDescription)
+                break
             }
             
-            visible = local.fetchNonDeleted(limit: limit, offset: 0)
+            visible = local.fetchNonDeleted(limit: targetCount, offset: 0)
         }
         
-        let result = Array(visible.prefix(targetCount))
-        dbOffset = result.count   // only advance by what we actually show
-        return result
+        dbOffset = visible.count
+        return visible
     }
 }

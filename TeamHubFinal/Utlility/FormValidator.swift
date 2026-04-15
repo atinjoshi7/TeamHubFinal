@@ -11,48 +11,52 @@ struct EmployeeFormValidator {
 
     // MARK: - Name
     static func validateName(_ text: String) -> String? {
-        if text.isEmpty { return nil }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return "Required" }
         let regex = "^[A-Za-z ]{1,}$"
-        let valid = NSPredicate(format: "SELF MATCHES %@", regex).evaluate(with: text)
+        let valid = NSPredicate(format: "SELF MATCHES %@", regex).evaluate(with: trimmed)
         return valid ? nil : "Enter valid name"
     }
 
     // MARK: - Email
     static func validateEmail(_ text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        if text.isEmpty { return nil }
+        if trimmed.isEmpty { return "Required" }
 
         // Cannot start with number
-        if let first = text.first, first.isNumber {
+        if let first = trimmed.first, first.isNumber {
             return "Email cannot start with a number"
         }
 
         // '@' must be before '.'
-        if let atIndex = text.firstIndex(of: "@"),
-           let dotIndex = text.lastIndex(of: "."),
+        if let atIndex = trimmed.firstIndex(of: "@"),
+           let dotIndex = trimmed.lastIndex(of: "."),
            atIndex > dotIndex {
             return "'@' must come before domain"
         }
 
         let regex = "^[A-Za-z][A-Za-z0-9._%+-]*@[A-Za-z0-9.-]+\\.[A-Za-z]{1,}$"
-        let valid = NSPredicate(format: "SELF MATCHES %@", regex).evaluate(with: text)
+        let valid = NSPredicate(format: "SELF MATCHES %@", regex).evaluate(with: trimmed)
 
         return valid ? nil : "Invalid email"
     }
 
     // MARK: - City / Country
     static func validateLocation(_ text: String) -> String? {
-        if text.isEmpty { return nil }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return "Required" }
         let regex = "^[A-Za-z ]{1,}$"
-        let valid = NSPredicate(format: "SELF MATCHES %@", regex).evaluate(with: text)
+        let valid = NSPredicate(format: "SELF MATCHES %@", regex).evaluate(with: trimmed)
         return valid ? nil : "Invalid value"
     }
 
     // MARK: - Phone
     static func validatePhone(_ text: String) -> String? {
-        if text.isEmpty { return nil }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return "Required" }
         let regex = #"^\+?[0-9]{7,15}$"#
-        let valid = NSPredicate(format: "SELF MATCHES %@", regex).evaluate(with: text)
+        let valid = NSPredicate(format: "SELF MATCHES %@", regex).evaluate(with: trimmed)
         return valid ? nil : "Invalid phone (7–15 digits)"
     }
 
@@ -72,7 +76,8 @@ struct EmployeeFormValidator {
         if validateLocation(city) != nil { return false }
         if validateLocation(country) != nil { return false }
 
-        if department.isEmpty || designation.isEmpty {
+        if department.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
+            designation.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return false
         }
 

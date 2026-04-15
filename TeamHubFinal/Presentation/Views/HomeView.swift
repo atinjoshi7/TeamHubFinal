@@ -166,7 +166,9 @@ struct HomeView: View {
                     Task {
                             await vm.performSearch()
                         }
-                    
+                    Task{
+                        await vm.ensureAutoSyncRunning()
+                    }
                     // Hide after very short time (1 ms = 0.001 sec)
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                         withAnimation{
@@ -178,6 +180,7 @@ struct HomeView: View {
                 previousConnection = isConnected
             }
         }
+        .environmentObject(vm)
     }
 }
 
@@ -185,40 +188,43 @@ extension HomeView {
 
     @ViewBuilder
     private var contentView: some View {
+        if vm.shouldShowShimmer {
+            shimmerView
+        } else if vm.displayEmployees.isEmpty {
+            EmptyStateView()
+        } else {
+            VStack(spacing: 0) {
+                if vm.showNewBanner {
+                    Button {
+                        vm.showNewBanner = false
+                    } label: {
+                        Text("New employees available")
+                            .font(.subheadline)
+                            .foregroundColor(.white)
+                            .padding()
+                            .frame(maxWidth: .infinity)
+                            .background(Color.blue)
+                    }
+                }
 
-        
-        if (vm.isLoading && vm.hasLoadedInitially && vm.displayEmployees.isEmpty){
-            List {
-                ForEach(0..<10, id: \.self) { _ in
-                    ShimmerRowView()
-                        .listRowSeparator(.hidden)
-                        .listRowInsets(EdgeInsets())
-                }
+                listView
             }
-            .listStyle(.plain)
-            .allowsHitTesting(false)
-        }
-        else {
-            if (!vm.isLoading && vm.displayEmployees.isEmpty) || (!vm.isLoading && vm.isSearchingOrFiltering && vm.displayEmployees.isEmpty) {
-                EmptyStateView()
-            }
-            else if vm.showNewBanner {
-                Button {
-                    vm.showNewBanner = false
-                } label: {
-                    Text("New employees available")
-                        .font(.subheadline)
-                        .foregroundColor(.white)
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .background(Color.blue)
-                }
-            }
-            listView
         }
     }
 }
 extension HomeView {
+
+    private var shimmerView: some View {
+        List {
+            ForEach(0..<10, id: \.self) { _ in
+                ShimmerRowView()
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets())
+            }
+        }
+        .listStyle(.plain)
+        .allowsHitTesting(false)
+    }
 
     private var listView: some View {
 
@@ -229,16 +235,7 @@ extension HomeView {
                 EmployeeRowView(employee: employee)
                     .id(employee.id)
                     .onAppear {
-                        // SIMPLE PAGINATION TRIGGER
-                        if employee.id == vm.displayEmployees.last?.id {
-                            Task {
-                                if vm.isSearchingOrFiltering {
-                                    Task { await vm.performSearchLoadMore() }
-                                } else {
-                                    Task { await vm.loadMore() }
-                                }
-                            }
-                        }
+                        vm.loadMoreIfNeeded(currentEmployee: employee)
                     }
 
                     .onTapGesture {

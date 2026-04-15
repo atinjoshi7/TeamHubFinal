@@ -11,6 +11,7 @@ import SwiftUI
 struct EditEmployeeView: View {
 
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var homeVM: HomeViewModel
 
     var employee: Employee
     var onSave: (Employee) -> Void
@@ -55,6 +56,30 @@ struct EditEmployeeView: View {
         let currentPhones = phones.map { $0.id + $0.number + $0.type }
 
         return originalPhones != currentPhones
+    }
+
+    private var isFormValid: Bool {
+        let baseValid = EmployeeFormValidator.validateForm(
+            name: name,
+            email: email,
+            city: city,
+            country: country,
+            department: department,
+            designation: designation,
+            phones: phones
+        )
+
+        guard baseValid else { return false }
+        guard !isDuplicateEmail else { return false }
+
+        return phones.allSatisfy { phone in
+            !isDuplicateHomeNumber(for: phone)
+        }
+    }
+
+    private var isDuplicateEmail: Bool {
+        guard EmployeeFormValidator.validateEmail(email) == nil else { return false }
+        return homeVM.emailExists(email, excludingEmployeeID: employee.id)
     }
 
     // MARK: - Init
@@ -105,7 +130,7 @@ struct EditEmployeeView: View {
                     }
 
                     // Department
-                    Picker("Department", selection: $department) {
+                    Picker(selection: $department) {
                         Text("Select Department").tag("")
                         if !departments.contains(department) && !department.isEmpty {
                             Text(department).tag(department)
@@ -113,11 +138,13 @@ struct EditEmployeeView: View {
                         ForEach(departments.sorted(), id: \.self) {
                             Text($0).tag($0)
                         }
+                    } label: {
+                        requiredLabel("Department")
                     }
                     .pickerStyle(.menu)
 
                     // Designation
-                    Picker("Designation", selection: $designation) {
+                    Picker(selection: $designation) {
                         Text("Select Designation").tag("")
                         if !designations.contains(designation) && !designation.isEmpty {
                             Text(designation).tag(designation)
@@ -125,18 +152,21 @@ struct EditEmployeeView: View {
                         ForEach(designations.sorted(), id: \.self) {
                             Text($0).tag($0)
                         }
+                    } label: {
+                        requiredLabel("Designation")
                     }
                     .pickerStyle(.menu)
 
                     DatePicker(
-                        "Joining Date",
                         selection: Binding(
                             get: { DateUtils.parse(joiningDate) ?? Date() },
                             set: { joiningDate = DateUtils.toYYYYMMDD($0) ?? "" }
                         ),
                         in: ...Date(),
                         displayedComponents: .date
-                    )
+                    ) {
+                        requiredLabel("Joining Date")
+                    }
 
                     Toggle("Active", isOn: $isActive)
                 }
@@ -152,17 +182,24 @@ struct EditEmployeeView: View {
                     ForEach($phones) { $phone in
                         VStack(alignment: .leading, spacing: 6) {
 
-                            Picker("Type", selection: $phone.type) {
+                            Picker(selection: $phone.type) {
                                 ForEach(phoneTypes, id: \.self) {
                                     Text($0.capitalized)
                                 }
+                            } label: {
+                                requiredLabel("Phone Type")
                             }
                             .pickerStyle(.menu)
+                            .onChange(of: phone.type) { _, _ in
+                                validatePhone(phone.id)
+                            }
 
-                            TextField("Number", text: $phone.number)
+                            requiredLabel("Phone Number")
+                            TextField("Enter phone number", text: $phone.number)
                                 .keyboardType(.numberPad)
-                                .onChange(of: phone.number) {
-                                    validatePhone(phone.id, value: $0)
+                                .onChange(of: phone.number) { _, newValue in
+                                    _ = newValue
+                                    validatePhone(phone.id)
                                 }
 
                             if let error = phoneErrors[phone.id] {
@@ -197,7 +234,7 @@ struct EditEmployeeView: View {
                     Button("Save") {
                         saveEmployee()
                     }
-                    .disabled(!hasChanges)
+                    .disabled(!hasChanges || !isFormValid)
                 }
             }
         }
@@ -212,12 +249,10 @@ struct EditEmployeeView: View {
     ) -> some View {
 
         VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.caption)
-                .foregroundColor(.secondary)
+            requiredLabel(title)
 
             TextField(title, text: text)
-                .onChange(of: text.wrappedValue) { _ in
+                .onChange(of: text.wrappedValue) { _, _ in
                     onChange()
                 }
 
@@ -231,43 +266,35 @@ struct EditEmployeeView: View {
 
     // MARK: - Validation
     private func validateName() {
-        if name.isEmpty || name.count < 2 {
-            nameError = nil
-        } else {
-            nameError = EmployeeFormValidator.validateName(name)
-        }
+        nameError = EmployeeFormValidator.validateName(name)
     }
 
     private func validateEmail() {
-        if email.isEmpty {
-            emailError = nil
-        } else {
-            emailError = EmployeeFormValidator.validateEmail(email)
+        if let error = EmployeeFormValidator.validateEmail(email) {
+            emailError = error
+            return
         }
+
+        emailError = isDuplicateEmail ? "Already exists" : nil
     }
 
     private func validateCity() {
-        if city.isEmpty || city.count < 2 {
-            cityError = nil
-        } else {
-            cityError = EmployeeFormValidator.validateLocation(city)
-        }
+        cityError = EmployeeFormValidator.validateLocation(city)
     }
 
     private func validateCountry() {
-        if country.isEmpty || country.count < 2 {
-            countryError = nil
-        } else {
-            countryError = EmployeeFormValidator.validateLocation(country)
-        }
+        countryError = EmployeeFormValidator.validateLocation(country)
     }
 
-    private func validatePhone(_ id: String, value: String) {
-        if value.isEmpty || value.count < 7 {
-            phoneErrors[id] = nil
-        } else {
-            phoneErrors[id] = EmployeeFormValidator.validatePhone(value)
+    private func validatePhone(_ id: String) {
+        guard let phone = phones.first(where: { $0.id == id }) else { return }
+
+        if let error = EmployeeFormValidator.validatePhone(phone.number) {
+            phoneErrors[id] = error
+            return
         }
+
+        phoneErrors[id] = isDuplicateHomeNumber(for: phone) ? "Already exists" : nil
     }
 
     // MARK: - Phone Helpers
@@ -294,10 +321,17 @@ struct EditEmployeeView: View {
             phones: phones
         )
 
-        guard isValid else {
+        validateName()
+        validateEmail()
+        validateCity()
+        validateCountry()
+        phones.forEach { validatePhone($0.id) }
+
+        guard isValid, !isDuplicateEmail else {
             print("Validation Failed")
             return
         }
+        guard phones.allSatisfy({ !isDuplicateHomeNumber(for: $0) }) else { return }
 
         let updated = Employee(
             id: employee.id,
@@ -317,5 +351,22 @@ struct EditEmployeeView: View {
 
         onSave(updated)
         dismiss()
+    }
+
+    private func requiredLabel(_ title: String) -> some View {
+        HStack(spacing: 2) {
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Text("*")
+                .font(.caption)
+                .foregroundColor(.red)
+        }
+    }
+
+    private func isDuplicateHomeNumber(for phone: EditablePhone) -> Bool {
+        guard phone.type.caseInsensitiveCompare("home") == .orderedSame else { return false }
+        guard EmployeeFormValidator.validatePhone(phone.number) == nil else { return false }
+        return homeVM.homePhoneExists(phone.number, excludingEmployeeID: employee.id)
     }
 }

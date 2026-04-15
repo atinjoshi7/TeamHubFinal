@@ -53,7 +53,9 @@ protocol EmployeeLocalDataSourceProtocol {
     func updateFromServer(_ employee: Employee)
     func nonDeletedCount() -> Int
     func fetchNonDeleted(limit: Int, offset: Int) -> [Employee]
-    func batchUpdateFromServer(_ employees: [Employee]) 
+    func batchUpdateFromServer(_ employees: [Employee])
+    func emailExists(_ email: String, excludingEmployeeID: String?) -> Bool
+    func homePhoneExists(_ number: String, excludingEmployeeID: String?) -> Bool
 }
 final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
 
@@ -116,6 +118,47 @@ final class EmployeeLocalDataSource: EmployeeLocalDataSourceProtocol {
         }
         
         stack.save(context: ctx)
+    }
+
+    func emailExists(_ email: String, excludingEmployeeID: String?) -> Bool {
+        let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedEmail.isEmpty else { return false }
+
+        let req: NSFetchRequest<EmployeeEntity> = EmployeeEntity.fetchRequest()
+        var predicates: [NSPredicate] = [
+            NSPredicate(format: "deletedAt == nil"),
+            NSPredicate(format: "email =[c] %@", normalizedEmail)
+        ]
+
+        if let excludingEmployeeID, !excludingEmployeeID.isEmpty {
+            predicates.append(NSPredicate(format: "id != %@", excludingEmployeeID))
+        }
+
+        req.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
+        req.fetchLimit = 1
+
+        return ((try? stack.viewContext.count(for: req)) ?? 0) > 0
+    }
+
+    func homePhoneExists(_ number: String, excludingEmployeeID: String?) -> Bool {
+        let normalizedNumber = number.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedNumber.isEmpty else { return false }
+
+        let req: NSFetchRequest<PhoneEntity> = PhoneEntity.fetchRequest()
+        var predicates: [NSPredicate] = [
+            NSPredicate(format: "employee.deletedAt == nil"),
+            NSPredicate(format: "type =[c] %@", "home"),
+            NSPredicate(format: "number == %@", normalizedNumber)
+        ]
+
+        if let excludingEmployeeID, !excludingEmployeeID.isEmpty {
+            predicates.append(NSPredicate(format: "employee.id != %@", excludingEmployeeID))
+        }
+
+        req.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
+        req.fetchLimit = 1
+
+        return ((try? stack.viewContext.count(for: req)) ?? 0) > 0
     }
     
     func search(query: String) -> [Employee] {

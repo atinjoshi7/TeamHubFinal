@@ -24,6 +24,7 @@ final class SyncManager: SyncManaging {
     private var isSyncing = false
     private var syncTimer: Timer?
     private(set) var syncRunning = false
+    private var hasStartedObserving = false
     
     init(repo: EmployeeRepositoryProtocol,
          network: NetworkMonitoring) {
@@ -33,6 +34,9 @@ final class SyncManager: SyncManaging {
 
     // Start observing network
     func start() {
+        guard !hasStartedObserving else { return }
+        hasStartedObserving = true
+
         print("SyncManager started")
 
         //Immediate sync if already online
@@ -55,23 +59,14 @@ final class SyncManager: SyncManaging {
 
     // Manual trigger
     func syncNow() async {
-
-        guard network.isConnected else { return }
-        guard !isSyncing else { return }
-
-        isSyncing = true
-
-        // 2. Pull from server
-        await repo.syncFromServer()
-
-        isSyncing = false
+        await runSyncCycle(pushLocalOnly: false)
     }
     
     
     func startAutoSync() async {
-        
-        syncRunning = true
+        start()
         stopAutoSync() // prevent duplicates
+        syncRunning = true
 
         syncTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
             
@@ -84,6 +79,7 @@ final class SyncManager: SyncManaging {
     func stopAutoSync() {
         syncTimer?.invalidate()
         syncTimer = nil
+        syncRunning = false
     }
     
     func syncFromServer() async {
@@ -101,7 +97,23 @@ final class SyncManager: SyncManaging {
 extension SyncManager {
 
      func pushLocalChanges() async {
+        await runSyncCycle(pushLocalOnly: true)
+    }
 
+    private func runSyncCycle(pushLocalOnly: Bool) async {
+        guard network.isConnected else { return }
+        guard !isSyncing else { return }
+
+        isSyncing = true
+        defer { isSyncing = false }
+
+        await pushPendingLocalChanges()
+
+        guard !pushLocalOnly else { return }
+        await repo.syncFromServer()
+    }
+
+    private func pushPendingLocalChanges() async {
         let pending = repo.fetchPendingSync()
 
         print("Pending items: \(pending.count)")
